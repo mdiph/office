@@ -58,7 +58,7 @@ export async function viewBorrowed() {
   return h("div.stack", [
     pageHead("Borrowed Items", actions),
     card(null, h("div.stack", [
-      h("div.toolbar", [search, h("label", { style: "display:flex;gap:6px;align-items:center" }, [onlyOverdue, "Overdue only"])]),
+      h("div.toolbar", [search, h("label.check-row", [onlyOverdue, "Overdue only"])]),
       region,
     ])),
   ]);

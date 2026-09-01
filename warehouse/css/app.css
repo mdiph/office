@@ -100,7 +100,12 @@ input, select, textarea {
   border-radius: var(--radius-sm); background: var(--c-surface); color: var(--c-text); width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--c-primary-l); border-color: var(--c-primary); }
+input[type="checkbox"], input[type="radio"] { width: auto; margin: 0; flex: none; }
 .input--search { min-width: 240px; }
+
+/* inline checkbox / radio + label row */
+.check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: .88rem; }
+.check-row input { flex: none; }
 
 /* ---------- tables ---------- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--c-border); border-radius: var(--radius); background: var(--c-surface); }

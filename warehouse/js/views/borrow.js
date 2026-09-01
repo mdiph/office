@@ -15,7 +15,7 @@ export async function viewBorrow() {
   const onBehalf = h("input", { type: "checkbox" });
   const canBehalf = can("borrow_behalf");
   const behalfRow = canBehalf
-    ? h("label.field", { style: "flex-direction:row;align-items:center;gap:8px" }, [onBehalf, "Borrowing on behalf of someone else"])
+    ? h("label.check-row", [onBehalf, "Borrowing on behalf of someone else"])
     : null;
 
   const form = buildForm([

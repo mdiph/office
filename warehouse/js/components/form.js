@@ -13,6 +13,24 @@ export function buildForm(fields) {
     if (f.type === "hidden") { controls[f.name] = { _hidden: true, value: f.value }; return; }
     const wrap = h(`div.field${f.full ? ".full" : ""}`);
     const id = "f_" + f.name;
+
+    // checkbox: render as an inline "[box] label" row
+    if (f.type === "checkbox") {
+      const input = h("input", { id, type: "checkbox" });
+      input.checked = !!f.value;
+      input.dataset.field = f.name;
+      if (f.onChange) input.addEventListener("change", () => f.onChange(input.checked, api));
+      controls[f.name] = input;
+      const row = h("label.check-row", { for: id }, [input, f.label + (f.required ? " *" : "")]);
+      wrap.appendChild(row);
+      const e = h("div", { style: "color:var(--c-err);font-size:.8rem;display:none" });
+      errEls[f.name] = e;
+      wrap.appendChild(e);
+      if (f.help) wrap.appendChild(h("div.muted", { style: "font-size:.8rem", text: f.help }));
+      grid.appendChild(wrap);
+      return;
+    }
+
     wrap.appendChild(h("label", { for: id, text: f.label + (f.required ? " *" : "") }));
 
     let input;
@@ -26,9 +44,6 @@ export function buildForm(fields) {
     } else if (f.type === "textarea") {
       input = h("textarea", { id, rows: f.rows || 3, placeholder: f.placeholder || "" });
       if (f.value) input.value = f.value;
-    } else if (f.type === "checkbox") {
-      input = h("input", { id, type: "checkbox" });
-      input.checked = !!f.value;
     } else if (f.type === "datalist") {
       const listId = id + "_list";
       input = h("input", { id, type: "text", placeholder: f.placeholder || "", autocomplete: "off" });

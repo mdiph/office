@@ -28,7 +28,7 @@ export async function openReturnForBorrow(borrow, onDone) {
 
   const form = buildForm(fields);
   const inspection = h("input", { type: "checkbox" });
-  const inspRow = h("label.field", { style: "flex-direction:row;align-items:center;gap:8px" }, [inspection, "Requires inspection before returning to Available"]);
+  const inspRow = h("label.check-row", [inspection, "Requires inspection before returning to Available"]);
 
   form.field("condition").addEventListener("change", () => {
     if (form.getValues().condition !== "Good") inspection.checked = true;
