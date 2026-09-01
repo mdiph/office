@@ -189,6 +189,10 @@ hides nav items by role, but that is cosmetic only.
 Items are **soft-deleted** (archived) only, and only when no stock or open transactions
 remain. `trackingType` cannot change once any transaction exists.
 
+**Categories & locations** are managed on the **Settings** page (Admin): add, rename
+(cascades to existing items / units), or delete (blocked while anything still references
+them). You can also edit the `Categories` / `Locations` tabs of the Sheet directly.
+
 ---
 
 ## 10. User management

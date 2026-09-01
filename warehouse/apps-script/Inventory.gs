@@ -42,6 +42,45 @@ function handleAddCategory_(user, payload, ctx) {
   });
 }
 
+function handleRenameCategory_(user, payload, ctx) {
+  require_(user.role, 'config_write');
+  var oldName = payload.old;
+  var newName = String(payload['new'] || '').trim();
+  if (!newName) throw new ApiError('VALIDATION', 'New category name required.');
+  return withLock_(function () {
+    var row = findRow_('Categories', function (r) { return r.name === oldName; });
+    if (!row) throw new ApiError('NOT_FOUND', 'Category not found.');
+    if (newName !== oldName && listCol_('Categories', 'name').indexOf(newName) !== -1) {
+      throw new ApiError('CONFLICT', 'A category with that name already exists.');
+    }
+    updateRow_('Categories', row._row, { name: newName });
+    readAll_('Inventory').forEach(function (s) {
+      if (s.category === oldName) {
+        var merged = {};
+        SHEETS.Inventory.forEach(function (h) { merged[h] = s[h]; });
+        merged.category = newName;
+        updateRow_('Inventory', s._row, merged);
+      }
+    });
+    audit_(ctx, user.email, user.role, 'CONFIG', 'category', newName, 'Renamed category ' + oldName + ' -> ' + newName, 'success');
+    return { categories: listCol_('Categories', 'name').sort() };
+  });
+}
+
+function handleDeleteCategory_(user, payload, ctx) {
+  require_(user.role, 'config_write');
+  var name = payload.name;
+  return withLock_(function () {
+    var row = findRow_('Categories', function (r) { return r.name === name; });
+    if (!row) throw new ApiError('NOT_FOUND', 'Category not found.');
+    var inUse = readAll_('Inventory').filter(function (s) { return s.category === name; }).length;
+    if (inUse) throw new ApiError('BLOCKED', 'Category is used by ' + inUse + ' item(s). Reassign them first.');
+    sheet_('Categories').deleteRow(row._row);
+    audit_(ctx, user.email, user.role, 'CONFIG', 'category', name, 'Deleted category', 'success');
+    return { categories: listCol_('Categories', 'name').sort() };
+  });
+}
+
 function handleAddLocation_(user, payload, ctx) {
   require_(user.role, 'config_write');
   var code = String(payload.code || '').trim().toUpperCase();
@@ -49,6 +88,45 @@ function handleAddLocation_(user, payload, ctx) {
   return withLock_(function () {
     if (listCol_('Locations', 'code').indexOf(code) === -1) appendRow_('Locations', { code: code });
     audit_(ctx, user.email, user.role, 'CONFIG', 'location', code, 'Added location', 'success');
+    return { locations: listCol_('Locations', 'code').sort() };
+  });
+}
+
+function handleRenameLocation_(user, payload, ctx) {
+  require_(user.role, 'config_write');
+  var oldCode = payload.old;
+  var newCode = String(payload['new'] || '').trim().toUpperCase();
+  if (!newCode) throw new ApiError('VALIDATION', 'New location code required.');
+  return withLock_(function () {
+    var row = findRow_('Locations', function (r) { return r.code === oldCode; });
+    if (!row) throw new ApiError('NOT_FOUND', 'Location not found.');
+    if (newCode !== oldCode && listCol_('Locations', 'code').indexOf(newCode) !== -1) {
+      throw new ApiError('CONFLICT', 'A location with that code already exists.');
+    }
+    updateRow_('Locations', row._row, { code: newCode });
+    readAll_('Units').forEach(function (u) {
+      if (u.location === oldCode) {
+        var merged = {};
+        SHEETS.Units.forEach(function (h) { merged[h] = u[h]; });
+        merged.location = newCode;
+        updateRow_('Units', u._row, merged);
+      }
+    });
+    audit_(ctx, user.email, user.role, 'CONFIG', 'location', newCode, 'Renamed location ' + oldCode + ' -> ' + newCode, 'success');
+    return { locations: listCol_('Locations', 'code').sort() };
+  });
+}
+
+function handleDeleteLocation_(user, payload, ctx) {
+  require_(user.role, 'config_write');
+  var code = payload.code;
+  return withLock_(function () {
+    var row = findRow_('Locations', function (r) { return r.code === code; });
+    if (!row) throw new ApiError('NOT_FOUND', 'Location not found.');
+    var inUse = readAll_('Units').filter(function (u) { return u.location === code; }).length;
+    if (inUse) throw new ApiError('BLOCKED', 'Location holds ' + inUse + ' unit(s). Move them first.');
+    sheet_('Locations').deleteRow(row._row);
+    audit_(ctx, user.email, user.role, 'CONFIG', 'location', code, 'Deleted location', 'success');
     return { locations: listCol_('Locations', 'code').sort() };
   });
 }

@@ -76,7 +76,11 @@ var ROUTER = {
   getConfig: handleGetConfig_,
   updateConfig: handleUpdateConfig_,
   addCategory: handleAddCategory_,
+  renameCategory: handleRenameCategory_,
+  deleteCategory: handleDeleteCategory_,
   addLocation: handleAddLocation_,
+  renameLocation: handleRenameLocation_,
+  deleteLocation: handleDeleteLocation_,
 
   listInventory: handleListInventory_,
   getItem: handleGetItem_,

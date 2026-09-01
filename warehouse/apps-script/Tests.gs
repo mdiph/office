@@ -33,6 +33,7 @@ function runAllTests() {
     test_inventoryAndSerializedFlow();
     test_quantityFlow();
     test_overReturnRejected();
+    test_vocabEditing();
     test_recompute();
   } finally {
     props_().setProperty('SPREADSHEET_ID', realId);
@@ -154,6 +155,26 @@ function test_overReturnRejected() {
   }, 'BLOCKED', 'cannot return more than borrowed');
   handleReturn_(admin, { borrowTxnId: bt, returnDate: '2098-01-01', returnedBy: 'B', condition: 'Good', qtyGood: 3, qtyDamaged: 0 }, ctx);
   _assert(skuByCode_(code).quantityOnHand === 5, 'quantity restored after full return');
+}
+
+function test_vocabEditing() {
+  var admin = _user('admin@test.local');
+  var ctx = { userAgent: 't' };
+  handleAddLocation_(admin, { code: 'dock-1' }, ctx);
+  _assert(listCol_('Locations', 'code').indexOf('DOCK-1') !== -1, 'addLocation uppercases');
+  handleRenameLocation_(admin, { old: 'DOCK-1', 'new': 'dock-2' }, ctx);
+  _assert(listCol_('Locations', 'code').indexOf('DOCK-2') !== -1, 'renameLocation unused');
+  handleDeleteLocation_(admin, { code: 'DOCK-2' }, ctx);
+  _assert(listCol_('Locations', 'code').indexOf('DOCK-2') === -1, 'deleteLocation unused');
+
+  _throws(function () { handleDeleteLocation_(admin, { code: 'A-01' }, ctx); }, 'BLOCKED', 'deleteLocation in-use blocked');
+  handleRenameLocation_(admin, { old: 'A-01', 'new': 'AISLE-1' }, ctx);
+  _assert(_units_().filter(function (u) { return u.location === 'A-01'; }).length === 0, 'rename cascaded units off A-01');
+
+  _throws(function () { handleDeleteCategory_(admin, { name: 'Power Tools' }, ctx); }, 'BLOCKED', 'deleteCategory in-use blocked');
+  handleRenameCategory_(admin, { old: 'Power Tools', 'new': 'Powered Tools' }, ctx);
+  _assert(readAll_('Inventory').filter(function (s) { return s.category === 'Power Tools'; }).length === 0, 'rename cascaded SKUs');
+  _throws(function () { require_('Warehouse Staff', 'config_write'); }, 'FORBIDDEN', 'staff cannot edit vocab');
 }
 
 function test_recompute() {

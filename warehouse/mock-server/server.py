@@ -310,6 +310,37 @@ def do_add_category(db, user, payload, ctx):
     return {"categories": sorted(db["categories"])}
 
 
+def do_rename_category(db, user, payload, ctx):
+    require(user["role"], "config_write")
+    old = payload.get("old")
+    new = (payload.get("new") or "").strip()
+    if not new:
+        raise ApiError("VALIDATION", "New category name required.")
+    if old not in db["categories"]:
+        raise ApiError("NOT_FOUND", "Category not found.")
+    if new != old and new in db["categories"]:
+        raise ApiError("CONFLICT", "A category with that name already exists.")
+    db["categories"] = [new if c == old else c for c in db["categories"]]
+    for s in db["inventory"]:
+        if s["category"] == old:
+            s["category"] = new
+    _audit(db, user["email"], user["role"], "CONFIG", "category", new, "Renamed category %s -> %s" % (old, new), "success", ctx)
+    return {"categories": sorted(db["categories"])}
+
+
+def do_delete_category(db, user, payload, ctx):
+    require(user["role"], "config_write")
+    name = payload.get("name")
+    if name not in db["categories"]:
+        raise ApiError("NOT_FOUND", "Category not found.")
+    in_use = sum(1 for s in db["inventory"] if s["category"] == name)
+    if in_use:
+        raise ApiError("BLOCKED", "Category is used by %d item(s). Reassign them first." % in_use)
+    db["categories"] = [c for c in db["categories"] if c != name]
+    _audit(db, user["email"], user["role"], "CONFIG", "category", name, "Deleted category", "success", ctx)
+    return {"categories": sorted(db["categories"])}
+
+
 def do_add_location(db, user, payload, ctx):
     require(user["role"], "config_write")
     code = (payload.get("code") or "").strip().upper()
@@ -318,6 +349,37 @@ def do_add_location(db, user, payload, ctx):
     if code not in db["locations"]:
         db["locations"].append(code)
     _audit(db, user["email"], user["role"], "CONFIG", "location", code, "Added location", "success", ctx)
+    return {"locations": sorted(db["locations"])}
+
+
+def do_rename_location(db, user, payload, ctx):
+    require(user["role"], "config_write")
+    old = payload.get("old")
+    new = (payload.get("new") or "").strip().upper()
+    if not new:
+        raise ApiError("VALIDATION", "New location code required.")
+    if old not in db["locations"]:
+        raise ApiError("NOT_FOUND", "Location not found.")
+    if new != old and new in db["locations"]:
+        raise ApiError("CONFLICT", "A location with that code already exists.")
+    db["locations"] = [new if c == old else c for c in db["locations"]]
+    for u in db["units"]:
+        if u.get("location") == old:
+            u["location"] = new
+    _audit(db, user["email"], user["role"], "CONFIG", "location", new, "Renamed location %s -> %s" % (old, new), "success", ctx)
+    return {"locations": sorted(db["locations"])}
+
+
+def do_delete_location(db, user, payload, ctx):
+    require(user["role"], "config_write")
+    code = payload.get("code")
+    if code not in db["locations"]:
+        raise ApiError("NOT_FOUND", "Location not found.")
+    in_use = sum(1 for u in db["units"] if u.get("location") == code)
+    if in_use:
+        raise ApiError("BLOCKED", "Location holds %d unit(s). Move them first." % in_use)
+    db["locations"] = [c for c in db["locations"] if c != code]
+    _audit(db, user["email"], user["role"], "CONFIG", "location", code, "Deleted location", "success", ctx)
     return {"locations": sorted(db["locations"])}
 
 
@@ -957,7 +1019,8 @@ HANDLERS = {
     "listUsers": do_list_users, "createUser": do_create_user, "updateUser": do_update_user,
     "resetPassword": do_reset_password, "forceLogout": do_force_logout,
     "getConfig": do_get_config, "updateConfig": do_update_config,
-    "addCategory": do_add_category, "addLocation": do_add_location,
+    "addCategory": do_add_category, "renameCategory": do_rename_category, "deleteCategory": do_delete_category,
+    "addLocation": do_add_location, "renameLocation": do_rename_location, "deleteLocation": do_delete_location,
     "listInventory": do_list_inventory, "getItem": do_get_item,
     "createSku": do_create_sku, "updateSku": do_update_sku, "deleteSku": do_delete_sku,
     "addUnits": do_add_units, "updateUnit": do_update_unit,

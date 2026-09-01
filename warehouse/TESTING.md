@@ -80,6 +80,8 @@ for a clean slate.
 
 - [ ] Change low-stock threshold → dashboard "Low stock" tile recalculates on reload.
 - [ ] Add a category / location → appears in the relevant dropdowns.
+- [ ] Rename a location that units use → confirm; units keep working and now show the new code.
+- [ ] Delete an unused category/location → gone. Delete one still in use → blocked with a count.
 - [ ] Change own password from Settings → sign out / in with the new one.
 
 ## Responsive

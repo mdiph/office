@@ -102,9 +102,9 @@ Sheets (tabs) in one Spreadsheet:
 
 - **Status** (fixed enum): `Available`, `Borrowed`, `Issued-out`, `Under inspection`, `Maintenance`, `Retired`, `Lost`.
 - **Condition** (fixed enum): `New`, `Good`, `Fair`, `Damaged`, `Needs repair`, `Incomplete`.
-- **Category:** Admin-managed `Categories` tab (no on-the-fly add), seeded with starters.
+- **Category:** Admin-managed `Categories` tab (no on-the-fly add), seeded with starters. Settings page supports add / rename (cascades to `Inventory`) / delete (blocked while in use).
 - **Brand / Model:** free text with `<datalist>` autocomplete from existing values.
-- **Location:** Admin-managed `Locations` tab of codes (`A-01`, `STAGING`, `QUARANTINE`, ...). One `location` field per item/unit.
+- **Location:** Admin-managed `Locations` tab of codes (`A-01`, `STAGING`, `QUARANTINE`, ...). One `location` field per item/unit. Settings page supports add / rename (cascades to `Units`) / delete (blocked while units are stored there).
 
 ## 7. Business rules (Q23) — all strict, server-enforced
 
