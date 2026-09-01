@@ -7,16 +7,13 @@ fully self-contained.
 ```
 /
 ├── index.html            # public static launcher (no auth, no backend) — links to each app
-├── DESIGN.md             # design decisions for the warehouse app
 └── warehouse/            # App #1 — Warehouse Management
     ├── index.html            # single-page app (login → RBAC → dashboard)
-    ├── config.js             # API mode switch (mock vs Apps Script)
+    ├── config.js             # Apps Script web-app URL
     ├── css/ js/              # frontend (vanilla JS, ES modules, no framework, no build step)
     ├── js/vendor/           # Chart.js + SheetJS, vendored (no CDN)
-    ├── apps-script/         # Google Apps Script backend (source of truth for the .gs files)
-    ├── mock-server/         # zero-dependency Python mock backend for local development
-    ├── README.md            # full setup guide (Sheets, Drive, Apps Script, auth, GitHub Pages)
-    └── TESTING.md           # manual per-role test checklist
+    ├── apps-script/         # Google Apps Script backend — one Code.gs
+    └── README.md            # full setup guide (Sheets, Drive, Apps Script, auth, GitHub Pages)
 ```
 
 ## Hosting on GitHub Pages
@@ -33,13 +30,11 @@ configuration is required.
 python3 -m http.server 8000
 #  → launcher:  http://localhost:8000/
 #  → warehouse: http://localhost:8000/warehouse/
-
-# in another terminal, run the mock backend so the warehouse app has data
-python3 warehouse/mock-server/server.py
 ```
 
-`warehouse/config.js` ships with `API_MODE: "mock"`. See
-[warehouse/README.md](warehouse/README.md) to connect the real Google Apps Script backend.
+The warehouse app needs its Google Apps Script backend deployed and its `/exec` URL
+in `warehouse/config.js` — see [warehouse/README.md](warehouse/README.md) for the full
+setup (Sheets, Drive, Apps Script, first admin).
 
 ## Adding another app
 

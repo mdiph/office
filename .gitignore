@@ -1,18 +1,10 @@
-# Local mock backend working data (rebuilt from mock-db.seed.json)
-warehouse/mock-server/mock-db.json
-warehouse/mock-server/mock-db.json.tmp
-
-# clasp
+# clasp (Apps Script deploy) — the manifest is managed in the Apps Script project,
+# not tracked here; clasp regenerates it on `clasp create`.
 warehouse/apps-script/.clasp.json
+warehouse/apps-script/appsscript.json
 .clasprc.json
-
-# node (only used for tooling: clasp, optional test deps)
 node_modules/
 package-lock.json
-
-# python
-__pycache__/
-*.pyc
 
 # editor / OS
 .DS_Store

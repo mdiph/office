@@ -24,8 +24,6 @@ access control.
 │  └─ js/vendor/ (Chart,    │◄─────────┤  ├─ Sheets (data)            │
 │      SheetJS)             │          │  └─ Drive (photos)           │
 └───────────────────────────┘          └──────────────────────────────┘
-        │  API_MODE = "mock"
-        └──────────────► warehouse/mock-server/server.py  (local dev only)
 ```
 
 - One `doPost(e)` entry point routes `{action, token, payload}`.
@@ -42,25 +40,26 @@ access control.
 | Need | For |
 |---|---|
 | A Google account | Sheets, Drive, Apps Script |
-| Python 3.8+ | serving the frontend locally, running the mock backend |
-| Node.js + `npm i -g @google/clasp` | pushing `.gs` files (optional — you can copy-paste instead) |
+| Python 3 (or any static server) | serving the frontend locally |
+| Node.js + `npm i -g @google/clasp` | pushing `Code.gs` (optional — you can copy-paste instead) |
 
 ---
 
-## 3. Local development first (no Google needed)
+## 3. Order of setup
 
-```bash
-# from the repo root
-python3 -m http.server 8000                       # serves the frontend
-python3 warehouse/mock-server/server.py           # serves the mock backend (port 3000)
-```
+The frontend is useless without the backend, so do it in this order:
 
-Open **http://localhost:8000/warehouse/** and sign in with `admin@warehouse.local` /
-`admin123` (see `mock-server/README.md` for all seed logins). `config.js` already has
-`API_MODE: "mock"`.
+1. **Google Sheets** (§4) and **Google Drive** (§5) — create the Sheet and photo folder.
+2. **Apps Script backend** (§6) — deploy it, run `setup()`, copy the `/exec` URL.
+3. **Point the frontend at it** (§7) — paste the URL into `config.js`.
+4. Serve the frontend and sign in as the bootstrap admin:
 
-Everything works against the mock: RBAC, borrow/return, image capture (stored as data
-URLs), reports, audit log. When you're happy, wire up the real backend below.
+   ```bash
+   python3 -m http.server 8000     # → http://localhost:8000/warehouse/
+   ```
+
+To get a few sample items to click through, run `seedDemoData()` in the Apps Script
+editor first (§6e), then add stock via **Receive** in the app.
 
 > **Webcam capture:** the "Use webcam" button on the photo field only works on a
 > **secure context** — `http://localhost` / `http://127.0.0.1`, or any HTTPS URL
@@ -73,8 +72,9 @@ URLs), reports, audit log. When you're happy, wire up the real backend below.
 ## 4. Google Sheets
 
 1. Create a new Google Sheet (any name). Leave it empty — `setup()` creates the tabs.
-2. Copy its **ID** from the URL: `https://docs.google.com/spreadsheets/d/`**`<THIS>`**`/edit`.
-3. (Optional, for tests) create a **second** sheet and note its ID too.
+2. **File → Settings → Time zone** — set it to your location (all date math uses this).
+3. Copy its **ID** from the URL: `https://docs.google.com/spreadsheets/d/`**`<THIS>`**`/edit`.
+4. (Optional, for tests) create a **second** sheet and note its ID too.
 
 Tabs created by `setup()`: `Users`, `Sessions`, `Inventory`, `Units`, `Transactions`,
 `AuditLog`, `Config`, `Categories`, `Locations`, `Counters`.
@@ -102,13 +102,18 @@ sheet row references.
 npm i -g @google/clasp
 clasp login
 cd warehouse/apps-script
-clasp create --type webapp --title "Warehouse Backend"   # writes .clasp.json
+clasp create --type webapp --title "Warehouse Backend"   # writes .clasp.json + appsscript.json
 clasp push
 ```
 
-**Option B — manual:** create a project at <https://script.google.com>, then create one
-file per `.gs` in `warehouse/apps-script/` and paste the contents. Also set the project
-manifest (`appsscript.json`) via Project Settings → "Show appsscript.json".
+**Option B — manual:** create a project at <https://script.google.com>, select all of
+the default `Code.gs`, and paste in the whole of **`warehouse/apps-script/Code.gs`** — the
+entire backend is that one file.
+
+You don't need to touch the project manifest — Apps Script runs V8 by default and
+requests the right permissions (Sheets, Drive, triggers) automatically the first time
+you run `setup()`. Date handling reads the **Sheet's** time zone (File → Settings →
+Time zone on the Spreadsheet), so set that, not the script's.
 
 ### 6b. Script properties
 
@@ -156,7 +161,6 @@ Edit `warehouse/config.js`:
 
 ```js
 export const CONFIG = {
-  API_MODE: "prod",
   GAS_WEB_APP_URL: "https://script.google.com/macros/s/AKfycb..../exec",
   ...
 };
@@ -178,7 +182,7 @@ No build step. If you later use a custom domain, nothing changes (paths are rela
 
 ## 9. Roles & permissions
 
-Backend-enforced on every action (`CAPS` in `apps-script/Config.gs`). The frontend also
+Backend-enforced on every action (`CAPS`, in the Config section of `apps-script/Code.gs`). The frontend also
 hides nav items by role, but that is cosmetic only.
 
 | Action | Admin | Warehouse Staff | Engineer | Viewer |
@@ -218,7 +222,7 @@ them). You can also edit the `Categories` / `Locations` tabs of the Sheet direct
 |---|---|
 | Backup | File → Make a copy of the Sheet; the Drive folder holds the photos. |
 | Rebuild status/quantity caches | Run `recomputeFromLedger()` in the Apps Script editor. |
-| Schema version | `Config!schemaVersion` must equal `SCHEMA_VERSION` in `Config.gs`; a mismatch makes the backend refuse requests until you re-run `setup()`. |
+| Schema version | `Config!schemaVersion` must equal `SCHEMA_VERSION` in `Code.gs`; a mismatch makes the backend refuse requests until you re-run `setup()`. |
 | Archive old audit rows | The log is append-only. To trim, copy `AuditLog` to a dated sheet and delete old rows manually. |
 | Triggers | `purgeSessions` (6h) and `sweepOrphanImages` (daily) are installed by `setup()`; check Triggers in the editor. |
 | Run backend tests | Set `TEST_SPREADSHEET_ID`, run `runAllTests()`, read the log. |

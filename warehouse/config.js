@@ -1,18 +1,10 @@
 // Warehouse Management — frontend configuration.
 //
-// API_MODE:
-//   "mock" -> talk to the local Python mock backend (warehouse/mock-server/server.py)
-//   "prod" -> talk to the deployed Google Apps Script web app
-//
-// Flip this to "prod" after you have deployed the Apps Script backend and pasted
-// its /exec URL into GAS_WEB_APP_URL below.
+// Deploy the Google Apps Script backend (see warehouse/README.md), then paste
+// its web-app URL (ends with /exec) into GAS_WEB_APP_URL below.
 
 export const CONFIG = {
-  API_MODE: "mock",
-
-  MOCK_API_URL: "http://localhost:3000",
-
-  // Paste your Apps Script web-app deployment URL here (ends with /exec):
+  // Apps Script web-app deployment URL:
   GAS_WEB_APP_URL: "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXXXXXXX/exec",
 
   APP_NAME: "Warehouse Management",
@@ -21,5 +13,5 @@ export const CONFIG = {
 };
 
 export function apiBase() {
-  return CONFIG.API_MODE === "prod" ? CONFIG.GAS_WEB_APP_URL : CONFIG.MOCK_API_URL;
+  return CONFIG.GAS_WEB_APP_URL;
 }

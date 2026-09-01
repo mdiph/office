@@ -26,7 +26,6 @@ export function renderLogin(root, onSuccess, notice) {
     notice ? h("div.badge.badge--warn", { text: notice, style: "display:block;margin-bottom:12px" }) : null,
     form.el,
     errorBox,
-    h("div.login-hint", { html: "Mock logins: <span class='mono'>admin@warehouse.local / admin123</span> (also staff / eng / view)." }),
   ]);
 
   form.el.addEventListener("submit", async (e) => {

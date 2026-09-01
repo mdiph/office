@@ -1,4 +1,4 @@
-// GAS / mock backend client. Speaks {action, token, payload} over a single POST
+// Apps Script backend client. Speaks {action, token, payload} over a single POST
 // with Content-Type: text/plain (avoids the CORS preflight that GAS can't answer).
 
 import { CONFIG, apiBase } from "../config.js";
