@@ -20,13 +20,14 @@ for a clean slate.
 - [ ] Sign in as `eng@warehouse.local / eng123`. Borrow page is available; borrower name is locked to the engineer.
 - [ ] 5 bad passwords in a row → account locks for ~15 min ("Account locked").
 
-## Inventory
+## Inventory (edit-only)
 
 - [ ] Search "drill" filters the table; category / status / location / type filters combine.
+- [ ] There is **no "Add item"** button — only "Receive stock" which links to Receive.
 - [ ] Click an item code → detail page with photo placeholder, units table, history timeline.
-- [ ] As Staff: **Add item** (serialized) → appears in list.
-- [ ] Add units to it → units table grows, unit IDs increment (`-U01`, `-U02`).
+- [ ] Item detail has **Edit** (SKU) and per-unit **Edit**, plus **Archive** — but **no "Add units"** ("Receive more" links to Receive instead).
 - [ ] Edit the SKU (name/spec) → persists after reload.
+- [ ] Edit a unit's condition/location → persists.
 - [ ] Try to archive an item that has units → blocked message.
 
 ## Receive
@@ -46,10 +47,15 @@ for a clean slate.
 - [ ] Quantity borrow of 5, return 3 good + 1 damaged → outstanding = 1; quantity on hand rose by 3 only.
 - [ ] Try to return more than outstanding → blocked.
 
-## Issue
+## Issue / Outgoing
 
-- [ ] Issue a serialized unit with an expected return date → unit status = Issued-out; appears in dashboard "Outside warehouse".
-- [ ] Issue quantity stock with no return date → quantity drops, not counted as overdue.
+- [ ] Page opens with a **"Currently issued out"** table (serialized units at status Issued-out + quantity issues with an expected return still out).
+- [ ] Issue a serialized unit with an expected return date → it appears in that table; overdue ones are highlighted red.
+- [ ] Issue a unit with **no** return date → shows in the table with a "permanent" badge.
+- [ ] Issue quantity stock with an expected return → shows as `×N`; with no return date it isn't listed (it's just gone).
+- [ ] Search box filters the list by item / recipient / dept.
+- [ ] Print / CSV / Excel act on the issued list.
+- [ ] As a Viewer/Engineer: the page and list are visible, but the "Record an issue" form is hidden.
 
 ## Item History
 

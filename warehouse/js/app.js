@@ -23,7 +23,7 @@ const ROUTES = [
   { path: "dashboard", label: "Dashboard", icon: "dashboard", cap: "view", render: viewDashboard },
   { path: "inventory", label: "Inventory", icon: "box", cap: "view", render: viewInventory },
   { path: "receive", label: "Receive", icon: "arrow-in", cap: "receive", render: viewReceive },
-  { path: "issue", label: "Issue / Outgoing", icon: "arrow-out", cap: "issue", render: viewIssue },
+  { path: "issue", label: "Issue / Outgoing", icon: "arrow-out", cap: "view", render: viewIssue },
   { path: "borrow", label: "Borrow", icon: "borrow", cap: "borrow", render: viewBorrow },
   { path: "borrowed", label: "Borrowed Items", icon: "list", cap: "view", render: viewBorrowed },
   { path: "returns", label: "Returns", icon: "return", cap: "return", render: viewReturns },

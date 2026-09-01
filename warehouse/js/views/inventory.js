@@ -67,20 +67,22 @@ export async function viewInventory({ navigate }) {
   apply();
 
   const actions = [];
-  if (can("inventory_write")) {
-    actions.push(btn("Add item", "plus", { primary: true, onClick: () => openSkuForm(cfg, null, () => { invalidateInventory(); viewRefresh(navigate); }) }));
+  if (can("receive")) {
+    actions.push(btn("Receive stock", "arrow-in", { primary: true, onClick: () => navigate("#/receive") }));
   }
 
   return h("div.stack", [
     pageHead("Inventory", actions),
+    can("inventory_write")
+      ? h("div.muted", { style: "margin:-6px 0 4px;font-size:.85rem",
+          text: "New items and additional stock are added from Receive. Here you can edit item details and individual units." })
+      : null,
     card(null, h("div.stack", [
       h("div.toolbar", [search, fType, fCat, fStatus, fLoc]),
       table.el,
     ])),
   ]);
 }
-
-function viewRefresh(navigate) { navigate("#/inventory"); location.reload(); }
 
 // ---------- SKU create / edit ----------
 export function openSkuForm(cfg, existing, onDone) {
@@ -147,8 +149,8 @@ export async function viewItemDetail({ args, navigate }) {
   const detailActions = [];
   if (can("inventory_write")) {
     detailActions.push(btn("Edit", "edit", { sm: true, onClick: () => openSkuForm(cfg, { ...sku, hasTxns: history.length > 0 }, () => { invalidateInventory(); location.reload(); }) }));
-    if (sku.trackingType === "serialized") {
-      detailActions.push(btn("Add units", "plus", { sm: true, onClick: () => openAddUnits(sku, cfg, () => location.reload()) }));
+    if (can("receive")) {
+      detailActions.push(btn("Receive more", "arrow-in", { sm: true, onClick: () => (location.hash = "#/receive") }));
     }
     if (sku.active) {
       detailActions.push(btn("Archive", "trash", { sm: true, danger: true, onClick: async () => {
@@ -196,41 +198,6 @@ export async function viewItemDetail({ args, navigate }) {
   ]);
 
   function kv(k, v) { return v ? h("div", [h("dt", { text: k }), h("dd", { text: v })]) : null; }
-}
-
-export function openAddUnits(sku, cfg, onDone) {
-  const countField = buildForm([{ name: "count", label: "How many units?", type: "number", min: 1, value: 1, required: true }]);
-  const rowsHost = h("div.stack");
-  const m = openModal({ title: `Add units to ${sku.itemCode}`, body: h("div.stack", [countField.el, rowsHost]), wide: true });
-
-  function renderRows() {
-    const n = Math.max(1, Number(countField.getValues().count) || 1);
-    rowsHost.innerHTML = "";
-    unitForms = [];
-    for (let i = 0; i < n; i++) {
-      const f = buildForm([
-        { name: "serialNumber", label: `Unit ${i + 1} serial (optional)` },
-        { name: "condition", label: "Condition", type: "select", options: cfg.conditions, value: "Good", required: true },
-        { name: "location", label: "Location", type: "select", options: cfg.locations, required: true },
-      ]);
-      unitForms.push(f);
-      rowsHost.appendChild(h("div.card", h("div.card__body", f.el)));
-    }
-  }
-  let unitForms = [];
-  countField.field("count").addEventListener("input", renderRows);
-  renderRows();
-
-  const save = h("button.btn.btn--primary", { text: "Add units" });
-  m.setFooter([h("button.btn", { text: "Cancel", onclick: () => m.close() }), save]);
-  save.addEventListener("click", () => withBusy(save, async () => {
-    if (unitForms.some((f) => !f.validate())) return;
-    try {
-      await call("addUnits", { itemCode: sku.itemCode, units: unitForms.map((f) => f.getValues()) });
-      toastOk("Units added");
-      m.close(); onDone && onDone();
-    } catch (e) { toastErr(e.message); }
-  }));
 }
 
 export function openEditUnit(unit, cfg, onDone) {

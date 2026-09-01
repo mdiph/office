@@ -139,8 +139,10 @@ function test_quantityFlow() {
   _throws(function () {
     handleIssue_(admin, { itemCode: code, qty: 99, recipient: 'R', department: 'D', purpose: 'p' }, ctx);
   }, 'BLOCKED', 'cannot issue more than on hand');
-  handleIssue_(admin, { itemCode: code, qty: 4, recipient: 'R', department: 'D', purpose: 'p' }, ctx);
+  handleIssue_(admin, { itemCode: code, qty: 4, recipient: 'R', department: 'D', purpose: 'p', expectedReturnDate: '2099-01-01' }, ctx);
   _assert(skuByCode_(code).quantityOnHand === 6, 'qty on hand 6 after issue');
+  var issued = handleListIssued_();
+  _assert(issued.rows.some(function (r) { return r.itemCode === code && r.qty === 4; }), 'quantity issue with expected return appears in listIssued');
 }
 
 function test_overReturnRejected() {

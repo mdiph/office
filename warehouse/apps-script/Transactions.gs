@@ -269,6 +269,49 @@ function _returnableIssues_() {
   });
 }
 
+function handleListIssued_() {
+  var names = {};
+  _skus_().forEach(function (s) { names[s.itemCode] = s.name; });
+  var grace = Number(configMap_().overdueGraceDays || 0);
+  var all = _transactions_();
+  var rows = [];
+
+  _units_().forEach(function (u) {
+    if (u.status !== 'Issued-out') return;
+    var issues = all.filter(function (t) { return t.type === 'ISSUE' && t.unitId === u.unitId; })
+      .sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
+    var issue = issues.length ? issues[issues.length - 1] : {};
+    rows.push({
+      kind: 'unit', itemCode: u.itemCode, itemName: names[u.itemCode] || u.itemCode,
+      unitId: u.unitId, qty: 1,
+      recipient: u.currentHolder || issue.party || '', department: issue.department || '',
+      destination: issue.destination || '', purpose: issue.purpose || '',
+      issueDate: issue.txnDate || '', slipNo: issue.slipNo || '',
+      expectedReturnDate: issue.expectedReturnDate || '',
+      permanent: !issue.expectedReturnDate,
+      overdue: _isOverdue_(issue.expectedReturnDate, grace)
+    });
+  });
+
+  all.forEach(function (t) {
+    if (t.type !== 'ISSUE' || t.unitId || !t.expectedReturnDate) return;
+    if (all.some(function (x) { return x.type === 'RETURN' && x.linkedTxnId === t.txnId; })) return;
+    rows.push({
+      kind: 'qty', itemCode: t.itemCode, itemName: names[t.itemCode] || t.itemCode,
+      unitId: null, qty: t.qty, recipient: t.party || '', department: t.department || '',
+      destination: t.destination || '', purpose: t.purpose || '', issueDate: t.txnDate || '',
+      slipNo: t.slipNo || '', expectedReturnDate: t.expectedReturnDate || '', permanent: false,
+      overdue: _isOverdue_(t.expectedReturnDate, grace)
+    });
+  });
+
+  rows.sort(function (a, b) {
+    return (a.expectedReturnDate || '9999-99-99').localeCompare(b.expectedReturnDate || '9999-99-99')
+      || String(a.itemName).localeCompare(String(b.itemName));
+  });
+  return { rows: rows };
+}
+
 function handleListTransactions_(user, payload) {
   var f = payload.filters || {};
   var rows = _transactions_().sort(function (a, b) { return String(b.timestamp).localeCompare(String(a.timestamp)); });

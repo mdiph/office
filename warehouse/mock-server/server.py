@@ -816,6 +816,52 @@ def _returnable_issues(db):
     return out
 
 
+def do_list_issued(db, user, payload, ctx):
+    """Everything currently issued out: serialized units with status Issued-out,
+    plus quantity ISSUE transactions that carry an expected return and aren't back."""
+    names = {s["itemCode"]: s["name"] for s in db["inventory"]}
+    rows = []
+
+    for u in db["units"]:
+        if u.get("status") != "Issued-out":
+            continue
+        issues = [t for t in db["transactions"]
+                  if t["type"] == "ISSUE" and t.get("unitId") == u["unitId"]]
+        issue = sorted(issues, key=lambda t: t["timestamp"])[-1] if issues else {}
+        rows.append({
+            "kind": "unit",
+            "itemCode": u["itemCode"], "itemName": names.get(u["itemCode"], u["itemCode"]),
+            "unitId": u["unitId"], "qty": 1,
+            "recipient": u.get("currentHolder") or issue.get("party"),
+            "department": issue.get("department"), "destination": issue.get("destination"),
+            "purpose": issue.get("purpose"), "issueDate": issue.get("txnDate"),
+            "slipNo": issue.get("slipNo"), "expectedReturnDate": issue.get("expectedReturnDate"),
+            "permanent": not issue.get("expectedReturnDate"),
+            "overdue": _is_overdue(db, issue.get("expectedReturnDate")),
+        })
+
+    for t in db["transactions"]:
+        if t["type"] != "ISSUE" or t.get("unitId"):
+            continue
+        if not t.get("expectedReturnDate"):
+            continue
+        if any(x["type"] == "RETURN" and x.get("linkedTxnId") == t["txnId"] for x in db["transactions"]):
+            continue
+        rows.append({
+            "kind": "qty",
+            "itemCode": t["itemCode"], "itemName": names.get(t["itemCode"], t["itemCode"]),
+            "unitId": None, "qty": t.get("qty"),
+            "recipient": t.get("party"), "department": t.get("department"),
+            "destination": t.get("destination"), "purpose": t.get("purpose"),
+            "issueDate": t.get("txnDate"), "slipNo": t.get("slipNo"),
+            "expectedReturnDate": t.get("expectedReturnDate"), "permanent": False,
+            "overdue": _is_overdue(db, t.get("expectedReturnDate")),
+        })
+
+    rows.sort(key=lambda r: (r["expectedReturnDate"] or "9999-99-99", r["itemName"]))
+    return {"rows": rows}
+
+
 def do_list_transactions(db, user, payload, ctx):
     f = payload.get("filters") or {}
     rows = sorted(db["transactions"], key=lambda r: r["timestamp"], reverse=True)
@@ -1026,7 +1072,7 @@ HANDLERS = {
     "addUnits": do_add_units, "updateUnit": do_update_unit,
     "receive": do_receive, "issue": do_issue, "borrow": do_borrow,
     "returnItems": do_return, "clearInspection": do_clear_inspection,
-    "itemHistory": do_item_history, "listBorrowed": do_list_borrowed,
+    "itemHistory": do_item_history, "listBorrowed": do_list_borrowed, "listIssued": do_list_issued,
     "listTransactions": do_list_transactions, "getDashboard": do_get_dashboard,
     "exportData": do_export_data, "listAudit": do_list_audit,
     "uploadImage": do_upload_image,

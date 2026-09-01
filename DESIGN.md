@@ -120,7 +120,8 @@ Sheets (tabs) in one Spreadsheet:
 ## 8. Transaction flows
 
 - **Receive (Q28e):** two modes — "New item" (creates SKU) and "Restock existing" (pick SKU, add qty / register more units). Records `processedBy` + timestamp automatically.
-- **Issue:** item, recipient, department, destination, purpose, date, expected return (optional), processedBy.
+- **Issue:** item, recipient, department, destination, purpose, date, expected return (optional), processedBy. The Issue page also lists everything **currently issued out** (serialized units with status `Issued-out` + quantity issues that carry an expected-return date and haven't come back), overdue highlighted. This list is viewable by all roles; the issue form is Staff/Admin only.
+- **Inventory is edit-only:** new items and additional stock are created exclusively through **Receive** (so every stock change has a ledger entry). The Inventory list and item-detail pages allow editing the SKU and individual units, archiving, and clearing inspection — no "Add item" / "Add units".
 - **Borrow:** borrower name, employee ID, department, item, unit/serial, qty, purpose, project/site, borrow date, **expected return date (required)**, processedBy (auto = current user). Sets unit status → `Borrowed`.
 - **Returns (Q18):** close a specific borrow. Records return date, returnedBy, receivedBy (auto = current user), condition dropdown, "requires inspection" checkbox (auto-checks when condition ≠ Good, manually overridable), damage/missing, notes. Not flagged → immediate flip to `Available`. Flagged → status `Under inspection`; separate `clearInspection` action (Staff/Admin) → `Available` / `Maintenance` / `Retired`. Quantity items: "qty returned good" + "qty damaged/missing"; good → `quantityOnHand`, damaged → write-off note.
 - **Borrowed Items page:** open borrows, overdue highlighted.
