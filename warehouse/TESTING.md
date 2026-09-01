@@ -14,7 +14,7 @@ for a clean slate.
 
 - [ ] Sign in as `admin@warehouse.local / admin123`. Dashboard loads with tiles + 3 charts.
 - [ ] Sign out. Sign in as `view@warehouse.local / view123`.
-- [ ] Viewer sidebar shows **only** Dashboard, Inventory, Borrowed Items, Item History, Reports, Settings (no Receive/Issue/Borrow/Returns/Users/Audit).
+- [ ] Viewer sidebar shows **only** Dashboard, Inventory, Issue / Outgoing, Borrowed Items, Item History, Reports, Settings (no Receive/Borrow/Users/Audit; Issue page shows the list but not the form).
 - [ ] As Viewer, visiting `#/receive` shows "You do not have access to this page."
 - [ ] As Viewer, Reports page: running any report is refused / no export buttons where disallowed.
 - [ ] Sign in as `eng@warehouse.local / eng123`. Borrow page is available; borrower name is locked to the engineer.
@@ -41,8 +41,8 @@ for a clean slate.
 
 - [ ] Borrow a serialized unit (due date required) → success toast; unit status = Borrowed.
 - [ ] Borrowed Items page lists it; set the due date in the past via a new borrow → row highlighted red + "Overdue".
-- [ ] Returns page → *Process return* → condition **Good**, no inspection → unit back to Available.
-- [ ] Borrow again, return with condition **Damaged** → "requires inspection" auto-checks → unit status = Under inspection.
+- [ ] Borrowed Items → row's **Return** button → *Process return* → condition **Good**, no inspection → unit back to Available.
+- [ ] Borrow again, Return with condition **Damaged** → "requires inspection" auto-checks → unit status = Under inspection.
 - [ ] Item detail → unit row → **Clear inspection** → choose Available → status updates.
 - [ ] Quantity borrow of 5, return 3 good + 1 damaged → outstanding = 1; quantity on hand rose by 3 only.
 - [ ] Try to return more than outstanding → blocked.

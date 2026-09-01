@@ -12,7 +12,6 @@ import { viewReceive } from "./views/receive.js";
 import { viewIssue } from "./views/issue.js";
 import { viewBorrow } from "./views/borrow.js";
 import { viewBorrowed } from "./views/borrowed.js";
-import { viewReturns } from "./views/returns.js";
 import { viewHistory } from "./views/history.js";
 import { viewReports } from "./views/reports.js";
 import { viewAudit } from "./views/audit.js";
@@ -26,7 +25,6 @@ const ROUTES = [
   { path: "issue", label: "Issue / Outgoing", icon: "arrow-out", cap: "view", render: viewIssue },
   { path: "borrow", label: "Borrow", icon: "borrow", cap: "borrow", render: viewBorrow },
   { path: "borrowed", label: "Borrowed Items", icon: "list", cap: "view", render: viewBorrowed },
-  { path: "returns", label: "Returns", icon: "return", cap: "return", render: viewReturns },
   { path: "history", label: "Item History", icon: "history", cap: "view", render: viewHistory },
   { path: "reports", label: "Reports & Export", icon: "chart", cap: "view", render: viewReports },
   { path: "audit", label: "Audit Log", icon: "shield", cap: "audit", render: viewAudit },

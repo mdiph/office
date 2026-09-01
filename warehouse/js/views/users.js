@@ -86,83 +86,49 @@ export async function viewUsers() {
   }
 
   return h("div.stack", [
-    pageHead("Users", [btn("Add user", "plus", { primary: true, onClick: openCreate })]),
+    pageHead("Users", [
+      btn("Roles & access", "shield", { onClick: openRolesMatrix }),
+      btn("Add user", "plus", { primary: true, onClick: openCreate }),
+    ]),
     card(null, table.el),
-    rolesReferenceCard(),
   ]);
 }
 
-const ROLE_INFO = [
-  {
-    role: "Admin",
-    summary: "Full control of the system.",
-    can: [
-      "Everything Warehouse Staff can do",
-      "Create / edit / disable users and change their roles",
-      "Reset passwords and force-logout any user",
-      "View and export the Audit Log",
-      "Edit Settings: low-stock threshold, overdue grace, categories, locations",
-    ],
-    cannot: ["Delete transaction history (nobody can — the ledger is append-only)"],
-  },
-  {
-    role: "Warehouse Staff",
-    summary: "Runs day-to-day warehouse operations.",
-    can: [
-      "Receive stock (new items and restock)",
-      "Edit item details and individual units; archive items",
-      "Issue / outgoing, and record borrows — including on behalf of other people",
-      "Process returns and clear items out of inspection",
-      "View everything and export reports (CSV / Excel / print)",
-    ],
-    cannot: ["Manage users", "See or export the Audit Log", "Change Settings"],
-  },
-  {
-    role: "Engineer",
-    summary: "Self-service borrower. (Engineer / Employee.)",
-    can: [
-      "Browse the dashboard, inventory, borrowed & issued lists, item history",
-      "Borrow items for themselves (recorded as processed by them)",
-      "Export reports",
-    ],
-    cannot: [
-      "Receive, issue, or edit inventory",
-      "Process returns",
-      "Record a borrow for someone else",
-      "Manage users, Audit Log, or Settings",
-    ],
-  },
-  {
-    role: "Viewer",
-    summary: "Read-only.",
-    can: ["View the dashboard, inventory, borrowed & issued lists, item history, and on-screen reports"],
-    cannot: ["Export anything", "Make any change — no receive, issue, borrow, return, or edits"],
-  },
+// action label -> which roles can do it
+const ROLE_MATRIX = [
+  ["View dashboard, inventory, borrowed & issued lists, item history", ["Admin", "Warehouse Staff", "Engineer", "Viewer"]],
+  ["Export reports (CSV / Excel / print)", ["Admin", "Warehouse Staff", "Engineer"]],
+  ["Receive stock (new items and restock)", ["Admin", "Warehouse Staff"]],
+  ["Edit item details & individual units; archive items", ["Admin", "Warehouse Staff"]],
+  ["Issue / outgoing", ["Admin", "Warehouse Staff"]],
+  ["Record a borrow for themselves", ["Admin", "Warehouse Staff", "Engineer"]],
+  ["Record a borrow on behalf of someone else", ["Admin", "Warehouse Staff"]],
+  ["Process returns & clear items out of inspection", ["Admin", "Warehouse Staff"]],
+  ["Manage users & roles, reset passwords, force logout", ["Admin"]],
+  ["View & export the Audit Log", ["Admin"]],
+  ["Edit Settings (thresholds, categories, locations)", ["Admin"]],
+  ["Delete transaction history", []],
 ];
+const ROLE_COLS = ["Admin", "Warehouse Staff", "Engineer", "Viewer"];
 
-function rolesReferenceCard() {
-  const body = h("div.stack");
-  ROLE_INFO.forEach((r) => {
-    body.appendChild(h("div", { style: "padding:10px 0;border-top:1px solid var(--c-border)" }, [
-      h("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
-        h("span.badge.badge--info", { text: r.role }),
-        h("span.muted", { text: r.summary }),
-      ]),
-      h("div.grid2", { style: "gap:10px;margin-top:6px" }, [
-        h("div", [
-          h("div", { style: "font-weight:650;font-size:.82rem;color:var(--c-ok)", text: "Can" }),
-          h("ul", { style: "margin:4px 0 0;padding-left:18px;font-size:.85rem" }, r.can.map((x) => h("li", { text: x }))),
-        ]),
-        h("div", [
-          h("div", { style: "font-weight:650;font-size:.82rem;color:var(--c-err)", text: "Cannot" }),
-          h("ul", { style: "margin:4px 0 0;padding-left:18px;font-size:.85rem" }, r.cannot.map((x) => h("li", { text: x }))),
-        ]),
-      ]),
-    ]));
-  });
-  body.appendChild(h("div.muted", {
-    style: "font-size:.8rem;margin-top:8px",
-    text: "Permissions are enforced by the backend on every request — hiding a menu item is only cosmetic.",
-  }));
-  return card("Roles & access", body);
+function openRolesMatrix() {
+  const thead = h("thead", h("tr", [
+    h("th", { text: "Action" }),
+    ...ROLE_COLS.map((r) => h("th", { style: "text-align:center", text: r })),
+  ]));
+  const tbody = h("tbody", ROLE_MATRIX.map(([label, allowed]) =>
+    h("tr", [
+      h("td.wrap", { text: label }),
+      ...ROLE_COLS.map((r) => h("td", { style: "text-align:center" },
+        allowed.includes(r)
+          ? h("span", { style: "color:var(--c-ok);font-weight:700", text: "✓" })
+          : h("span", { style: "color:var(--c-border-strong)", text: "—" }))),
+    ])));
+  const body = h("div.stack", [
+    h("div.muted", { style: "font-size:.85rem", text:
+      "The backend enforces these on every request — hiding a menu item is only cosmetic. “Engineer” covers Engineer / Employee." }),
+    h("div.table-wrap", h("table.tbl", [thead, tbody])),
+  ]);
+  const m = openModal({ title: "Roles & access", body, wide: true });
+  m.setFooter([btn("Close", null, { onClick: () => m.close() })]);
 }

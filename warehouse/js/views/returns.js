@@ -1,51 +1,13 @@
+// Returning borrowed items is done from the Borrowed Items page (the "Return"
+// button on each row). This module just holds the shared return dialog.
 import { h } from "../util/dom.js";
 import { call } from "../api.js";
 import { getConfig, invalidateInventory, currentUser } from "../store.js";
-import { pageHead, card, btn, withBusy } from "./_shared.js";
-import { dataTable } from "../components/table.js";
+import { withBusy } from "./_shared.js";
 import { buildForm } from "../components/form.js";
 import { openModal } from "../components/modal.js";
 import { toastOk, toastErr } from "../components/toast.js";
-import { fmtDate, todayISO } from "../util/dates.js";
-
-export async function viewReturns() {
-  const { rows } = await call("listBorrowed");
-
-  const table = dataTable({
-    columns: [
-      { key: "itemName", label: "Item", wrap: true },
-      { key: "unitId", label: "Unit / qty", render: (r) => r.unitId ? h("span.mono", { text: r.unitId }) : `×${r.outstanding}` },
-      { key: "borrower", label: "Borrower" },
-      { key: "borrowDate", label: "Borrowed", render: (r) => fmtDate(r.borrowDate) },
-      { key: "expectedReturnDate", label: "Due", render: (r) => fmtDate(r.expectedReturnDate) },
-      { key: "overdue", label: "", render: (r) => r.overdue ? h("span.badge.badge--err", { text: "Overdue" }) : "" },
-      { key: "_a", label: "", sortable: false, render: (r) => btn("Process return", "return", { sm: true, primary: true, onClick: () => openReturnForBorrow(r, () => location.reload()) }) },
-    ],
-    rows,
-    emptyText: "No outstanding borrows to return.",
-    responsiveCards: true,
-    cardTitle: (r) => `${r.itemName} — ${r.borrower}`,
-  });
-
-  const help = h("div.card", h("div.card__body", { style: "font-size:.88rem" }, [
-    h("b", { text: "What is this page?" }),
-    h("p", { style: "margin:6px 0 0", text:
-      "Returns is where you check borrowed items back into the warehouse. Every row below is an open borrow. " +
-      "Click “Process return” to record who brought it back, who received it, the condition, and any damage or missing pieces." }),
-    h("p", { style: "margin:6px 0 0", text:
-      "If the item is in good condition it goes straight back to Available. If it is damaged or you tick “requires inspection”, " +
-      "the unit is held as “Under inspection” until someone clears it from the item’s detail page. " +
-      "For quantity items you can split the return into good vs. damaged/missing counts." }),
-    h("p", { style: "margin:6px 0 0", class: "muted", text:
-      "Note: this page handles items that were borrowed. Items sent out via Issue / Outgoing are tracked on the Issue page." }),
-  ]));
-
-  return h("div.stack", [
-    pageHead("Returns", []),
-    help,
-    card("Outstanding borrows", table.el),
-  ]);
-}
+import { todayISO } from "../util/dates.js";
 
 export async function openReturnForBorrow(borrow, onDone) {
   const cfg = await getConfig();
@@ -74,6 +36,8 @@ export async function openReturnForBorrow(borrow, onDone) {
 
   const body = h("div.stack", [
     h("div.muted", { text: `${borrow.itemName} · ${borrow.slipNo || ""} · borrowed by ${borrow.borrower}` }),
+    h("div.muted", { style: "font-size:.82rem", text:
+      "Good condition returns straight to Available. Damaged / “requires inspection” holds the unit as Under inspection until it's cleared from the item page." }),
     form.el, inspRow,
   ]);
   const m = openModal({ title: "Process return", body });
