@@ -32,7 +32,7 @@ function runAllTests() {
     test_rbac();
     test_inventoryAndSerializedFlow();
     test_quantityFlow();
-    test_permanentIssueReleased();
+    test_permanentIssueRemovesUnit();
     test_overReturnRejected();
     test_vocabEditing();
     test_recompute();
@@ -146,24 +146,32 @@ function test_quantityFlow() {
   _assert(issued.rows.some(function (r) { return r.itemCode === code && r.qty === 4; }), 'quantity issue with expected return appears in listIssued');
 }
 
-function test_permanentIssueReleased() {
+function test_permanentIssueRemovesUnit() {
   var admin = _user('admin@test.local');
   var ctx = { userAgent: 't' };
   var res = handleReceive_(admin, {
     mode: 'new', name: 'Router', category: 'Power Tools', trackingType: 'serialized',
-    units: [{ condition: 'Good', location: 'A-01' }, { condition: 'Good', location: 'A-01' }], purpose: 'stock'
+    units: [{ serialNumber: 'RTR-9', condition: 'Good', location: 'A-01' }, { condition: 'Good', location: 'A-01' }], purpose: 'stock'
   }, ctx);
   var code = res.sku.itemCode;
   var u = unitsOf_(code);
-  // permanent issue -> Released
-  handleIssue_(admin, { itemCode: code, unitId: u[0].unitId, recipient: 'Cust', department: 'Sales', purpose: 'sold' }, ctx);
-  _assert(_unitByCode_(u[0].unitId).status === 'Released', 'permanent issue -> Released');
-  // loan issue -> Issued-out
-  handleIssue_(admin, { itemCode: code, unitId: u[1].unitId, recipient: 'Loanee', department: 'QA', purpose: 'loan', expectedReturnDate: '2099-01-01' }, ctx);
-  _assert(_unitByCode_(u[1].unitId).status === 'Issued-out', 'loan issue -> Issued-out');
+  var soldUnitId = u[0].unitId, loanUnitId = u[1].unitId;
+
+  // permanent issue -> unit row deleted
+  handleIssue_(admin, { itemCode: code, unitId: soldUnitId, recipient: 'Cust', department: 'Sales', purpose: 'sold' }, ctx);
+  _assert(_unitByCode_(soldUnitId) === null, 'permanent issue deletes the unit row');
+  _assert(unitsOf_(code).length === 1, 'SKU now has 1 unit');
+  var hist = _historyRows_(code, null);
+  var issueTxn = hist.filter(function (h) { return h.type === 'ISSUE' && h.unitId === soldUnitId; })[0];
+  _assert(!!issueTxn, 'ISSUE transaction for the sold unit is retained in history');
+  _assert(String(issueTxn.notes).indexOf('RTR-9') !== -1, 'serial number captured in the ISSUE transaction notes');
+
+  // loan issue -> unit stays, Issued-out
+  handleIssue_(admin, { itemCode: code, unitId: loanUnitId, recipient: 'Loanee', department: 'QA', purpose: 'loan', expectedReturnDate: '2099-01-01' }, ctx);
+  _assert(_unitByCode_(loanUnitId).status === 'Issued-out', 'loan issue keeps the unit as Issued-out');
   var li = handleListIssued_();
-  _assert(li.rows.some(function (r) { return r.unitId === u[1].unitId; }), 'loan in listIssued');
-  _assert(!li.rows.some(function (r) { return r.unitId === u[0].unitId; }), 'Released not in listIssued');
+  _assert(li.rows.some(function (r) { return r.unitId === loanUnitId; }), 'loan appears in listIssued');
+  _assert(!li.rows.some(function (r) { return r.unitId === soldUnitId; }), 'sold unit not in listIssued');
 }
 
 function test_overReturnRejected() {

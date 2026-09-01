@@ -21,9 +21,10 @@ var LOCK_MINUTES = 15;
 var EXPORT_CAP = 50000;
 var LOCK_TIMEOUT_MS = 25000;
 
-var STATUSES = ['Available', 'Borrowed', 'Issued-out', 'Under inspection', 'Maintenance', 'Released', 'Retired', 'Lost'];
-// Terminal statuses: the unit has left active inventory for good.
-var TERMINAL_STATUSES = ['Released', 'Retired', 'Lost'];
+var STATUSES = ['Available', 'Borrowed', 'Issued-out', 'Under inspection', 'Maintenance', 'Retired', 'Lost'];
+// Units in these statuses no longer count as live stock (they stay in the sheet for records).
+// A permanent issue does not use a status — the unit row is deleted; the ISSUE transaction is the record.
+var TERMINAL_STATUSES = ['Retired', 'Lost'];
 var CONDITIONS = ['New', 'Good', 'Fair', 'Damaged', 'Needs repair', 'Incomplete'];
 var ROLES = ['Admin', 'Warehouse Staff', 'Engineer', 'Viewer'];
 

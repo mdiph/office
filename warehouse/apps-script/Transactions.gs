@@ -85,13 +85,24 @@ function handleIssue_(user, payload, ctx) {
     if (!recipient || !department || !purpose) throw new ApiError('VALIDATION', 'Recipient, department and purpose are required.');
     var exp = payload.expectedReturnDate || '';
     var slip = 'ISS-' + ('000000' + nextCounter_('ISS')).slice(-6);
-    var qty;
+    var notes = String(payload.notes || '').trim();
+    var qty, permanentUnit = false, unitCondition = '';
     if (t.unit) {
       if (t.unit.status !== 'Available') throw new ApiError('BLOCKED', 'Unit is ' + t.unit.status + ', not Available.');
-      // Loan (has an expected return date) stays visible as Issued-out; a permanent
-      // issue (no return date) is Released — it leaves active inventory.
-      _setUnit_(t.unit, { status: exp ? 'Issued-out' : 'Released', currentHolder: recipient });
       qty = 1;
+      unitCondition = t.unit.condition;
+      if (exp) {
+        // Loan: unit stays, tracked as Issued-out until returned.
+        _setUnit_(t.unit, { status: 'Issued-out', currentHolder: recipient });
+      } else {
+        // Permanent issue (sold / consumed): the unit row is deleted.
+        // The ISSUE transaction is the only record from here on.
+        permanentUnit = true;
+        var sn = t.unit.serialNumber;
+        var trace = sn ? 'S/N ' + sn : 'no serial';
+        notes = trace + '; condition ' + t.unit.condition + ' at issue' + (notes ? '. ' + notes : '');
+        sheet_('Units').deleteRow(t.unit._row);
+      }
     } else {
       qty = parseInt(payload.qty, 10) || 0;
       if (qty <= 0) throw new ApiError('VALIDATION', 'Quantity must be positive.');
@@ -101,10 +112,12 @@ function handleIssue_(user, payload, ctx) {
     var txn = _txn_({
       type: 'ISSUE', itemCode: t.sku.itemCode, unitId: t.unit ? t.unit.unitId : '', qty: qty, slipNo: slip,
       txnDate: payload.txnDate || todayStr_(), party: recipient, department: department,
-      destination: payload.destination || '', purpose: purpose, expectedReturnDate: exp, processedBy: user.email
+      destination: payload.destination || '', purpose: purpose, expectedReturnDate: exp,
+      notes: notes, condition: unitCondition, processedBy: user.email
     });
     appendRow_('Transactions', txn);
-    audit_(ctx, user.email, user.role, 'ISSUE', 'sku', t.sku.itemCode, 'Issued ' + qty + ' to ' + recipient + ' (' + slip + ')', 'success');
+    audit_(ctx, user.email, user.role, 'ISSUE', 'sku', t.sku.itemCode,
+      (permanentUnit ? 'Issued (permanent, removed) ' : 'Issued ') + qty + ' to ' + recipient + ' (' + slip + ')', 'success');
     return { txn: txn };
   });
 }
@@ -290,7 +303,6 @@ function handleListIssued_() {
       destination: issue.destination || '', purpose: issue.purpose || '',
       issueDate: issue.txnDate || '', slipNo: issue.slipNo || '',
       expectedReturnDate: issue.expectedReturnDate || '',
-      permanent: !issue.expectedReturnDate,
       overdue: _isOverdue_(issue.expectedReturnDate, grace)
     });
   });
@@ -302,7 +314,7 @@ function handleListIssued_() {
       kind: 'qty', itemCode: t.itemCode, itemName: names[t.itemCode] || t.itemCode,
       unitId: null, qty: t.qty, recipient: t.party || '', department: t.department || '',
       destination: t.destination || '', purpose: t.purpose || '', issueDate: t.txnDate || '',
-      slipNo: t.slipNo || '', expectedReturnDate: t.expectedReturnDate || '', permanent: false,
+      slipNo: t.slipNo || '', expectedReturnDate: t.expectedReturnDate || '',
       overdue: _isOverdue_(t.expectedReturnDate, grace)
     });
   });

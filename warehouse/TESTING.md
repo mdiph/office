@@ -24,7 +24,7 @@ for a clean slate.
 
 - [ ] Search "drill" filters the table; category / status / location / type filters combine.
 - [ ] There is **no "Add item"** button — only "Receive stock" which links to Receive.
-- [ ] Archived items and items whose serialized units are all removed are hidden by default; the "Show archived / released" toggle reveals them.
+- [ ] Archived items still appear with an "archived" badge (soft delete).
 - [ ] Click an item code → detail page with photo placeholder, units table, history timeline.
 - [ ] Item detail has **Edit** (SKU) and per-unit **Edit**, plus **Archive** — but **no "Add units"** ("Receive more" links to Receive instead).
 - [ ] Edit the SKU (name/spec) → persists after reload.
@@ -52,8 +52,7 @@ for a clean slate.
 
 - [ ] Page opens with a **"Currently issued out"** table (serialized units at status Issued-out + quantity issues with an expected return still out).
 - [ ] Issue a serialized unit **with an expected return date** → status = Issued-out, appears in the table; overdue ones highlighted red.
-- [ ] Issue a serialized unit **with no return date** → status = **Released**; it does **not** appear in the issued-out list, is gone from the default Inventory list, and no longer counts as stock.
-- [ ] The Released unit is still visible on the item's detail page via the "Show N removed" toggle, with full history.
+- [ ] Issue a serialized unit **with no return date** (sold to customer) → the unit **disappears** from the item's Units table and from stock counts. Only the item History keeps it: an ISSUE row showing the recipient, purpose, and the serial number in the notes.
 - [ ] Issue quantity stock with an expected return → shows as `×N`; with no return date it isn't listed (stock just drops).
 - [ ] Search box filters the list; Print / CSV / Excel act on the issued list.
 - [ ] As a Viewer/Engineer: the page and list are visible, but the "Record an issue" form is hidden.

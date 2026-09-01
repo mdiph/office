@@ -77,10 +77,9 @@ function recomputeFromLedger() {
     txns.forEach(function (t) {
       if (t.type === 'RECEIVE' && !t.unitId && t.itemCode) qty[t.itemCode] = (qty[t.itemCode] || 0) + Number(t.qty || 0);
       if (t.type === 'ISSUE') {
-        if (t.unitId && unitMap[t.unitId]) {
-          unitMap[t.unitId]._status = t.expectedReturnDate ? 'Issued-out' : 'Released';
-          unitMap[t.unitId]._holder = t.party;
-        } else qty[t.itemCode] = (qty[t.itemCode] || 0) - Number(t.qty || 0);
+        // Permanent serialized issues delete the unit, so it won't be in unitMap.
+        if (t.unitId && unitMap[t.unitId]) { unitMap[t.unitId]._status = 'Issued-out'; unitMap[t.unitId]._holder = t.party; }
+        else if (!t.unitId) qty[t.itemCode] = (qty[t.itemCode] || 0) - Number(t.qty || 0);
       }
       if (t.type === 'BORROW') {
         if (t.unitId && unitMap[t.unitId]) { unitMap[t.unitId]._status = 'Borrowed'; unitMap[t.unitId]._holder = t.party; }

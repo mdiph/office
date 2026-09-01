@@ -25,7 +25,7 @@ export async function viewIssue() {
       { key: "destination", label: "Destination", render: (r) => r.destination || "—" },
       { key: "purpose", label: "Purpose", wrap: true },
       { key: "issueDate", label: "Issued", render: (r) => fmtDate(r.issueDate) },
-      { key: "expectedReturnDate", label: "Expected back", render: (r) => r.permanent ? h("span.badge.badge--mut", { text: "permanent" }) : fmtDate(r.expectedReturnDate) },
+      { key: "expectedReturnDate", label: "Expected back", render: (r) => fmtDate(r.expectedReturnDate) },
       { key: "overdue", label: "Status", render: (r) => r.overdue ? h("span.badge.badge--err", { text: "Overdue" }) : h("span.badge.badge--info", { text: "Out" }) },
     ],
     rows: [],
@@ -47,7 +47,7 @@ export async function viewIssue() {
 
   const listActions = [btn("Print", "print", { onClick: () => printSection("Issued / outgoing items", listCard) })];
   if (can("export")) {
-    const cols = ["slipNo", "itemCode", "itemName", "unitId", "qty", "recipient", "employeeId", "department", "destination", "purpose", "issueDate", "expectedReturnDate", "permanent", "overdue"];
+    const cols = ["slipNo", "itemCode", "itemName", "unitId", "qty", "recipient", "employeeId", "department", "destination", "purpose", "issueDate", "expectedReturnDate", "overdue"];
     listActions.push(btn("CSV", "download", { onClick: () => exportCSV("issued-items", cols, issued.rows) }));
     listActions.push(btn("Excel", "download", { onClick: () => exportXLSX("issued-items", cols, issued.rows, "Issued") }));
   }
@@ -76,8 +76,8 @@ export async function viewIssue() {
     }));
     formSection = card("Record an issue", h("div.stack", [
       h("div.muted", { style: "font-size:.82rem", text:
-        "With an expected-return date the item is tracked as a loan and stays in this list. " +
-        "Leave it blank for a permanent issue (to a customer, consumed, etc.) — a serialized unit is then marked Released and drops out of active inventory; quantity stock is simply deducted." }),
+        "With an expected-return date the item is tracked as a loan and stays in this list until it is returned. " +
+        "Leave it blank for a permanent issue (sold to a customer, consumed, etc.): a serialized unit is then removed from inventory entirely — only the transaction history keeps the record — and quantity stock is simply deducted." }),
       picker.el, form.el, h("div", save),
     ]));
   }

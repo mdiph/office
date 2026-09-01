@@ -100,7 +100,7 @@ Sheets (tabs) in one Spreadsheet:
 
 ## 6. Vocabularies (Q22)
 
-- **Status** (fixed enum): `Available`, `Borrowed`, `Issued-out` (loaned, expected back), `Under inspection`, `Maintenance`, `Released` (issued permanently — sold / consumed / to customer), `Retired`, `Lost`. `Released` / `Retired` / `Lost` are **terminal**: the unit is excluded from active stock counts and hidden from the default Inventory / item-detail views (a "Show all" toggle reveals them).
+- **Status** (fixed enum): `Available`, `Borrowed`, `Issued-out` (loaned, expected back), `Under inspection`, `Maintenance`, `Retired`, `Lost`. `Retired` / `Lost` units stay in the `Units` sheet but don't count as live stock. A **permanent issue does not use a status** — see below.
 - **Condition** (fixed enum): `New`, `Good`, `Fair`, `Damaged`, `Needs repair`, `Incomplete`.
 - **Category:** Admin-managed `Categories` tab (no on-the-fly add), seeded with starters. Settings page supports add / rename (cascades to `Inventory`) / delete (blocked while in use).
 - **Brand / Model:** free text with `<datalist>` autocomplete from existing values.
@@ -121,8 +121,8 @@ Sheets (tabs) in one Spreadsheet:
 
 - **Receive (Q28e):** two modes — "New item" (creates SKU) and "Restock existing" (pick SKU, add qty / register more units). Records `processedBy` + timestamp automatically.
 - **Issue:** item, recipient, department, destination, purpose, date, expected return (optional), processedBy.
-  - **With** an expected-return date → treated as a **loan**: serialized unit → `Issued-out`, appears in the Issue page's "Currently issued out" list.
-  - **Without** an expected-return date → **permanent**: serialized unit → `Released` (leaves active inventory, not in the issued-out list); quantity stock is simply deducted.
+  - **With** an expected-return date → **loan**: serialized unit → `Issued-out`, appears in the Issue page's "Currently issued out" list, returnable from Borrowed Items... actually returns are borrow-only, so a loaned *issue* currently has no return flow (known gap).
+  - **Without** an expected-return date → **permanent** (sold / consumed): the serialized **unit row is deleted** from `Units`. The append-only `ISSUE` transaction is the only record — it captures the serial number and condition-at-issue in `notes`. Quantity stock is simply deducted.
   - The "Currently issued out" list (loans + returnable quantity issues, overdue highlighted) is viewable by all roles; the issue form is Staff/Admin only.
 - **Inventory is edit-only:** new items and additional stock are created exclusively through **Receive** (so every stock change has a ledger entry). The Inventory list and item-detail pages allow editing the SKU and individual units, archiving, and clearing inspection — no "Add item" / "Add units".
 - **Borrow:** borrower name, employee ID, department, item, unit/serial, qty, purpose, project/site, borrow date, **expected return date (required)**, processedBy (auto = current user). Sets unit status → `Borrowed`.

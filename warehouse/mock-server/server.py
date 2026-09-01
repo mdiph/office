@@ -31,10 +31,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, "mock-db.json")          # working copy (gitignored)
 SEED_PATH = os.path.join(HERE, "mock-db.seed.json")   # pristine committed seed
 
-STATUSES = ["Available", "Borrowed", "Issued-out", "Under inspection", "Maintenance", "Released", "Retired", "Lost"]
+STATUSES = ["Available", "Borrowed", "Issued-out", "Under inspection", "Maintenance", "Retired", "Lost"]
 CONDITIONS = ["New", "Good", "Fair", "Damaged", "Needs repair", "Incomplete"]
 ROLES = ["Admin", "Warehouse Staff", "Engineer", "Viewer"]
-TERMINAL_STATUSES = ("Released", "Retired", "Lost")
+# Units in these statuses no longer count as live stock (they stay in the sheet for records).
+TERMINAL_STATUSES = ("Retired", "Lost")
 
 SESSION_IDLE_MS = 8 * 60 * 60 * 1000
 SESSION_ABS_MS = 24 * 60 * 60 * 1000
@@ -624,13 +625,24 @@ def do_issue(db, user, payload, ctx):
         raise ApiError("VALIDATION", "Recipient, department and purpose are required.")
     exp = payload.get("expectedReturnDate") or None
     slip = f"ISS-{next_counter(db, 'ISS'):06d}"
+    notes = (payload.get("notes") or "").strip()
+    permanent_unit = False
     if unit:
         if unit["status"] != "Available":
             raise ApiError("BLOCKED", f"Unit is {unit['status']}, not Available.")
-        # Loan (expected return date) stays Issued-out; permanent issue -> Released.
-        unit["status"] = "Issued-out" if exp else "Released"
-        unit["currentHolder"] = recipient
         qty = 1
+        if exp:
+            # Loan: unit stays, tracked as Issued-out until returned.
+            unit["status"] = "Issued-out"
+            unit["currentHolder"] = recipient
+        else:
+            # Permanent issue (sold / consumed): the unit leaves the database.
+            # The ISSUE transaction is the only record from here on.
+            permanent_unit = True
+            sn = unit.get("serialNumber")
+            trace = f"S/N {sn}" if sn else "no serial"
+            notes = f"{trace}; condition {unit['condition']} at issue" + (f". {notes}" if notes else "")
+            db["units"] = [u for u in db["units"] if u["unitId"] != unit["unitId"]]
     else:
         qty = int(payload.get("qty") or 0)
         if qty <= 0:
@@ -641,10 +653,12 @@ def do_issue(db, user, payload, ctx):
     txn = _mk_txn(type="ISSUE", itemCode=sku["itemCode"], unitId=unit["unitId"] if unit else None,
                   qty=qty, slipNo=slip, txnDate=payload.get("txnDate") or today_str(),
                   party=recipient, department=department, destination=payload.get("destination"),
-                  purpose=purpose, expectedReturnDate=exp, processedBy=user["email"])
+                  purpose=purpose, expectedReturnDate=exp, notes=notes or None,
+                  condition=unit["condition"] if unit else None, processedBy=user["email"])
     db["transactions"].append(txn)
+    verb = "Issued (permanent, removed)" if permanent_unit else "Issued"
     _audit(db, user["email"], user["role"], "ISSUE", "sku", sku["itemCode"],
-           f"Issued {qty} to {recipient} ({slip})", "success", ctx)
+           f"{verb} {qty} to {recipient} ({slip})", "success", ctx)
     return {"txn": txn}
 
 
@@ -842,7 +856,6 @@ def do_list_issued(db, user, payload, ctx):
             "department": issue.get("department"), "destination": issue.get("destination"),
             "purpose": issue.get("purpose"), "issueDate": issue.get("txnDate"),
             "slipNo": issue.get("slipNo"), "expectedReturnDate": issue.get("expectedReturnDate"),
-            "permanent": not issue.get("expectedReturnDate"),
             "overdue": _is_overdue(db, issue.get("expectedReturnDate")),
         })
 
@@ -860,7 +873,7 @@ def do_list_issued(db, user, payload, ctx):
             "recipient": t.get("party"), "department": t.get("department"),
             "destination": t.get("destination"), "purpose": t.get("purpose"),
             "issueDate": t.get("txnDate"), "slipNo": t.get("slipNo"),
-            "expectedReturnDate": t.get("expectedReturnDate"), "permanent": False,
+            "expectedReturnDate": t.get("expectedReturnDate"),
             "overdue": _is_overdue(db, t.get("expectedReturnDate")),
         })
 
