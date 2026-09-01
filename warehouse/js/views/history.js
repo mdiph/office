@@ -46,6 +46,7 @@ export async function viewHistory() {
     emptyText: "No transactions match.",
     pageSize: 100,
     responsiveCards: true,
+    tallScroll: true,
     cardTitle: (r) => `${r.type} · ${skuName(r.itemCode)}`,
   });
   tableHost.appendChild(table.el);

@@ -6,6 +6,8 @@ import { h } from "../util/dom.js";
 // Returns { el, getValues, setError, validate, setValue, field(name) }
 export function buildForm(fields) {
   const grid = h("form.formgrid");
+  // No form has a real submit target — Enter in a lone text field must not reload the page.
+  grid.addEventListener("submit", (e) => e.preventDefault());
   const controls = {};
   const errEls = {};
 

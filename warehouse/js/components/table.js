@@ -12,6 +12,7 @@ export function dataTable(opts) {
     pageSize = 50,
     responsiveCards = false,
     cardTitle,
+    tallScroll = false,
   } = opts;
 
   let rows = initialRows;
@@ -20,7 +21,7 @@ export function dataTable(opts) {
   let shown = pageSize;
 
   const wrap = h("div");
-  const tableWrap = h(`div.table-wrap${responsiveCards ? ".responsive" : ""}`);
+  const tableWrap = h(`div.table-wrap${responsiveCards ? ".responsive" : ""}${tallScroll ? ".table-wrap--tall" : ""}`);
   const cardList = h("div.cardlist");
   const pager = h("div.pager");
   wrap.append(tableWrap, responsiveCards ? cardList : document.createComment(""), pager);

@@ -26,7 +26,7 @@ export async function viewIssue() {
     ? buildOutgoingForm({ skus, units, me, canIssue, canBorrowBehalf })
     : null;
 
-  const recentCard = await buildRecentIssuesCard();
+  const recentCard = await buildRecentIssuesCard(skus);
 
   return h("div.stack", [
     pageHead("Issue / Outgoing", []),
@@ -130,8 +130,22 @@ function buildOutgoingForm({ skus, units, me, canIssue, canBorrowBehalf }) {
   ]));
 }
 
-async function buildRecentIssuesCard() {
-  const { rows } = await call("listTransactions", { filters: { type: "ISSUE" }, limit: 50 });
+// The permanent-issue log grows without bound. Rather than dumping the last N
+// rows (and stretching the page), this is a bounded query: default to the last
+// 30 days, let the user narrow by date / item / free text, and page the rest in
+// on demand. The table body scrolls inside its own box (tallScroll).
+async function buildRecentIssuesCard(skus) {
+  const DEFAULT_DAYS = 30;
+  const PAGE = 50;
+
+  const filters = buildForm([
+    { name: "dateFrom", label: "From", type: "date", value: addDaysISO(todayISO(), -DEFAULT_DAYS) },
+    { name: "dateTo", label: "To", type: "date", value: todayISO() },
+    { name: "itemCode", label: "Item", type: "select",
+      options: [{ value: "", label: "All items" }, ...skus.map((s) => ({ value: s.itemCode, label: `${s.itemCode} — ${s.name}` }))] },
+    { name: "search", label: "Search", type: "text", placeholder: "recipient, dept, slip, purpose…" },
+  ]);
+
   const table = dataTable({
     columns: [
       { key: "timestamp", label: "When", render: (r) => fmtDateTime(r.timestamp) },
@@ -145,17 +159,70 @@ async function buildRecentIssuesCard() {
       { key: "notes", label: "Notes", wrap: true, render: (r) => r.notes || "—" },
       { key: "processedBy", label: "By" },
     ],
-    rows,
-    emptyText: "Nothing has been issued yet.",
+    rows: [],
+    emptyText: "No permanent issues match.",
+    pageSize: PAGE,
     responsiveCards: true,
+    tallScroll: true,
     cardTitle: (r) => `${skuName(r.itemCode)} — ${r.party}`,
   });
-  const region = h("div", table.el);
-  const actions = [btn("Print", "print", { sm: true, onClick: () => printSection("Recently issued", region) })];
+
+  const pager = h("div.pager");
+  const count = h("div.muted", { style: "font-size:.82rem" });
+  const region = h("div.stack", [table.el, pager]);
+
+  let rows = [];
+  let cursor = 0;
+  let total = 0;
+  let seq = 0; // guards against out-of-order responses when filters change fast
+
+  async function load(reset) {
+    const mine = ++seq;
+    if (reset) { rows = []; cursor = 0; }
+    const f = filters.getValues();
+    try {
+      const res = await call("listTransactions", {
+        filters: {
+          type: "ISSUE",
+          itemCode: f.itemCode || undefined,
+          dateFrom: f.dateFrom || undefined,
+          dateTo: f.dateTo || undefined,
+          search: f.search || undefined,
+        },
+        cursor,
+        limit: PAGE,
+      });
+      if (mine !== seq) return; // a newer load supersedes this one
+      rows = reset ? res.rows : rows.concat(res.rows);
+      total = res.total ?? rows.length;
+      cursor = res.nextCursor ?? cursor + res.rows.length;
+      table.setRows(rows);
+      pager.innerHTML = "";
+      if (res.nextCursor != null) {
+        pager.appendChild(btn(`Load more (${total - rows.length} more)`, null, { sm: true, onClick: () => load(false) }));
+      }
+      count.textContent = total ? `Showing ${rows.length} of ${total}` : "";
+    } catch (e) {
+      if (mine === seq) toastErr(e.message);
+    }
+  }
+
+  let searchTimer = null;
+  filters.field("search").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => load(true), 300);
+  });
+  ["dateFrom", "dateTo", "itemCode"].forEach((n) =>
+    filters.field(n).addEventListener("change", () => load(true)));
+
+  await load(true);
+
+  const actions = [btn("Print", "print", { sm: true, onClick: () => printSection("Issued items", region) })];
   if (can("export")) {
     const cols = ["timestamp", "slipNo", "itemCode", "unitId", "qty", "party", "department", "destination", "purpose", "notes", "processedBy"];
     actions.push(btn("CSV", "download", { sm: true, onClick: () => exportCSV("issued-items", cols, rows) }));
     actions.push(btn("Excel", "download", { sm: true, onClick: () => exportXLSX("issued-items", cols, rows, "Issued") }));
   }
-  return card(`Recently issued (permanent) — last ${rows.length}`, region, h("div.row", actions));
+
+  return card("Issued (permanent)", h("div.stack", [filters.el, count, region]), h("div.row", actions));
 }
