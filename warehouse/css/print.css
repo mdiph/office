@@ -1,13 +1,36 @@
+/* In-page print portal: printSection() clones content into .print-portal and adds
+   .is-printing to <body>; the print stylesheet hides everything else. */
+.print-portal { display: none; }
+.print-portal__meta { display: none; }
+
 @media print {
-  .sidebar, .topbar, .toolbar, .btn, .pager, .tabs, .banner-offline, .toast-host { display: none !important; }
-  .layout { grid-template-columns: 1fr; }
-  .content { padding: 0; }
-  body { background: #fff; font-size: 11px; }
-  .card, .table-wrap { box-shadow: none; border-color: #999; }
-  .tbl th { background: #eee !important; }
-  a { color: #000; text-decoration: none; }
+  body.is-printing > #app { display: none !important; }
+  body.is-printing .toast-host { display: none !important; }
+
+  .print-portal {
+    display: block !important;
+    padding: 0;
+    color: #000;
+    background: #fff;
+  }
+  .print-portal h1 { font-size: 18px; margin: 0 0 2px; }
+  .print-portal__meta { display: block !important; font-size: 10px; color: #444; margin-bottom: 12px; }
+
+  .print-portal .card { box-shadow: none; border: none; }
+  .print-portal .card__head { border-color: #999; padding: 6px 0; font-size: 12px; }
+  .print-portal .card__body { padding: 6px 0; }
+  .print-portal .table-wrap { box-shadow: none; border: 1px solid #999; overflow: visible !important; }
+  .print-portal table.tbl { font-size: 10px; width: 100%; }
+  .print-portal .tbl th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-portal .tbl th, .print-portal .tbl td { border-color: #bbb; white-space: normal; }
+  .print-portal .badge { border: 1px solid #999; background: #fff !important; color: #000 !important; }
+  .print-portal .timeline::before { background: #999; }
+  .print-portal a { color: #000; text-decoration: none; }
+
   @page { margin: 14mm; }
-  .print-title { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-  .print-meta { display: block !important; font-size: 10px; color: #444; margin-bottom: 12px; }
 }
-.print-title, .print-meta { display: none; }
+
+/* When NOT printing, keep the portal fully hidden even if left in the DOM briefly. */
+@media screen {
+  .print-portal { display: none !important; }
+}

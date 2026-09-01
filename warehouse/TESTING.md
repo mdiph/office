@@ -53,7 +53,11 @@ for a clean slate.
 
 ## Item History
 
-- [ ] Pick an item → timeline shows RECEIVE → BORROW → RETURN in order; "All events" table + CSV + Print work.
+- [ ] Opens showing **all** transactions across every item (no selection needed), newest first, with "Load more".
+- [ ] Type filter (RECEIVE/ISSUE/BORROW/RETURN/ADJUST) narrows the list.
+- [ ] Pick an item → list narrows to that item **and** a Timeline card appears (RECEIVE → BORROW → RETURN in order). Pick a unit → narrows further.
+- [ ] Clear the item filter → back to overall history.
+- [ ] **Print** → browser print dialog shows the table (not a blank page); CSV downloads the current rows.
 
 ## Reports & Export
 

@@ -44,21 +44,38 @@ export function exportXLSX(baseName, columns, rows, sheetName = "Data") {
   return true;
 }
 
+// Print `node` by cloning it into an in-page portal that the print stylesheet
+// shows while hiding the rest of the app. No popup window (browsers block/blank those).
 export function printSection(titleText, node) {
-  const holder = document.createElement("div");
-  holder.className = "print-region";
-  const t = document.createElement("div");
-  t.className = "print-title";
-  t.textContent = titleText;
-  const m = document.createElement("div");
-  m.className = "print-meta";
-  m.textContent = "Generated " + new Date().toLocaleString();
-  holder.append(t, m, node.cloneNode(true));
-  const w = window.open("", "_blank");
-  w.document.write(`<!doctype html><title>${titleText}</title>`);
-  w.document.write('<link rel="stylesheet" href="' + location.origin + location.pathname.replace(/[^/]*$/, "") + 'css/tokens.css">');
-  w.document.write('<link rel="stylesheet" href="' + location.origin + location.pathname.replace(/[^/]*$/, "") + 'css/app.css">');
-  w.document.body.appendChild(holder);
-  w.document.querySelectorAll(".print-title,.print-meta").forEach((e) => (e.style.display = "block"));
-  setTimeout(() => { w.print(); }, 250);
+  document.querySelectorAll(".print-portal").forEach((e) => e.remove());
+
+  const portal = document.createElement("div");
+  portal.className = "print-portal";
+
+  const title = document.createElement("h1");
+  title.textContent = titleText;
+  const meta = document.createElement("div");
+  meta.className = "print-portal__meta";
+  meta.textContent = "Generated " + new Date().toLocaleString();
+
+  const content = node.cloneNode(true);
+  // expand any scroll containers and "load more" truncation for print
+  content.querySelectorAll(".table-wrap").forEach((w) => (w.style.overflow = "visible"));
+  content.querySelectorAll(".pager, .toolbar, button").forEach((e) => e.remove());
+
+  portal.append(title, meta, content);
+  document.body.appendChild(portal);
+  document.body.classList.add("is-printing");
+
+  const cleanup = () => {
+    document.body.classList.remove("is-printing");
+    portal.remove();
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  // Fallback for browsers that don't fire afterprint reliably
+  setTimeout(() => {
+    try { window.print(); } catch (e) {}
+    setTimeout(cleanup, 1000);
+  }, 60);
 }
