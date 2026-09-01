@@ -22,11 +22,19 @@ export async function viewInventory({ navigate }) {
   const unitsBy = {};
   units.forEach((u) => (unitsBy[u.itemCode] ||= []).push(u));
 
+  const lowThreshold = cfg.lowStockThreshold ?? 0;
+
   function rowStatus(s) {
-    if (s.trackingType === "quantity") return s.quantityOnHand > 0 ? "In stock" : "Empty";
+    if (s.trackingType === "quantity") {
+      const q = Number(s.quantityOnHand || 0);
+      const text = `${q} in stock`;
+      if (q <= 0) return h("span.badge.badge--err", { text: "Out of stock" });
+      if (q <= lowThreshold) return h("span.badge.badge--warn", { text: `${text} (low)` });
+      return text;
+    }
     const us = unitsBy[s.itemCode] || [];
     const avail = us.filter((u) => u.status === "Available").length;
-    return `${avail}/${us.length} available`;
+    return `${avail} of ${us.length} available`;
   }
 
   const table = dataTable({
