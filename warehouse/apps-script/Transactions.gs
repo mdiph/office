@@ -75,6 +75,9 @@ function _resolveTarget_(payload) {
 }
 
 // ---- Issue ----
+// Issue is always a PERMANENT departure (sold / consumed / handed off for good) —
+// there is no return date and no return flow. Anything expected back is a Borrow
+// (see handleBorrow_), which already has full loan + overdue + return support.
 function handleIssue_(user, payload, ctx) {
   require_(user.role, 'issue');
   return withLock_(function () {
@@ -83,26 +86,19 @@ function handleIssue_(user, payload, ctx) {
     var department = String(payload.department || '').trim();
     var purpose = String(payload.purpose || '').trim();
     if (!recipient || !department || !purpose) throw new ApiError('VALIDATION', 'Recipient, department and purpose are required.');
-    var exp = payload.expectedReturnDate || '';
     var slip = 'ISS-' + ('000000' + nextCounter_('ISS')).slice(-6);
     var notes = String(payload.notes || '').trim();
-    var qty, permanentUnit = false, unitCondition = '';
+    var qty, unitCondition = '';
     if (t.unit) {
       if (t.unit.status !== 'Available') throw new ApiError('BLOCKED', 'Unit is ' + t.unit.status + ', not Available.');
       qty = 1;
       unitCondition = t.unit.condition;
-      if (exp) {
-        // Loan: unit stays, tracked as Issued-out until returned.
-        _setUnit_(t.unit, { status: 'Issued-out', currentHolder: recipient });
-      } else {
-        // Permanent issue (sold / consumed): the unit row is deleted.
-        // The ISSUE transaction is the only record from here on.
-        permanentUnit = true;
-        var sn = t.unit.serialNumber;
-        var trace = sn ? 'S/N ' + sn : 'no serial';
-        notes = trace + '; condition ' + t.unit.condition + ' at issue' + (notes ? '. ' + notes : '');
-        sheet_('Units').deleteRow(t.unit._row);
-      }
+      // The unit leaves the database for good; the ISSUE transaction (with the
+      // serial number folded into its notes) is the only record from here on.
+      var sn = t.unit.serialNumber;
+      var trace = sn ? 'S/N ' + sn : 'no serial';
+      notes = trace + '; condition ' + t.unit.condition + ' at issue' + (notes ? '. ' + notes : '');
+      sheet_('Units').deleteRow(t.unit._row);
     } else {
       qty = parseInt(payload.qty, 10) || 0;
       if (qty <= 0) throw new ApiError('VALIDATION', 'Quantity must be positive.');
@@ -112,12 +108,12 @@ function handleIssue_(user, payload, ctx) {
     var txn = _txn_({
       type: 'ISSUE', itemCode: t.sku.itemCode, unitId: t.unit ? t.unit.unitId : '', qty: qty, slipNo: slip,
       txnDate: payload.txnDate || todayStr_(), party: recipient, department: department,
-      destination: payload.destination || '', purpose: purpose, expectedReturnDate: exp,
+      destination: payload.destination || '', purpose: purpose,
       notes: notes, condition: unitCondition, processedBy: user.email
     });
     appendRow_('Transactions', txn);
     audit_(ctx, user.email, user.role, 'ISSUE', 'sku', t.sku.itemCode,
-      (permanentUnit ? 'Issued (permanent, removed) ' : 'Issued ') + qty + ' to ' + recipient + ' (' + slip + ')', 'success');
+      'Issued ' + qty + ' to ' + recipient + ' (' + slip + ')', 'success');
     return { txn: txn };
   });
 }
@@ -276,55 +272,6 @@ function handleListBorrowed_() {
   return { rows: _openBorrows_().map(function (r) { r.itemName = names[r.itemCode] || r.itemCode; return r; }) };
 }
 
-function _returnableIssues_() {
-  var all = _transactions_();
-  return all.filter(function (t) {
-    if (t.type !== 'ISSUE' || !t.expectedReturnDate) return false;
-    return !all.some(function (x) { return x.type === 'RETURN' && x.linkedTxnId === t.txnId; });
-  });
-}
-
-function handleListIssued_() {
-  var names = {};
-  _skus_().forEach(function (s) { names[s.itemCode] = s.name; });
-  var grace = Number(configMap_().overdueGraceDays || 0);
-  var all = _transactions_();
-  var rows = [];
-
-  _units_().forEach(function (u) {
-    if (u.status !== 'Issued-out') return;
-    var issues = all.filter(function (t) { return t.type === 'ISSUE' && t.unitId === u.unitId; })
-      .sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
-    var issue = issues.length ? issues[issues.length - 1] : {};
-    rows.push({
-      kind: 'unit', itemCode: u.itemCode, itemName: names[u.itemCode] || u.itemCode,
-      unitId: u.unitId, qty: 1,
-      recipient: u.currentHolder || issue.party || '', department: issue.department || '',
-      destination: issue.destination || '', purpose: issue.purpose || '',
-      issueDate: issue.txnDate || '', slipNo: issue.slipNo || '',
-      expectedReturnDate: issue.expectedReturnDate || '',
-      overdue: _isOverdue_(issue.expectedReturnDate, grace)
-    });
-  });
-
-  all.forEach(function (t) {
-    if (t.type !== 'ISSUE' || t.unitId || !t.expectedReturnDate) return;
-    if (all.some(function (x) { return x.type === 'RETURN' && x.linkedTxnId === t.txnId; })) return;
-    rows.push({
-      kind: 'qty', itemCode: t.itemCode, itemName: names[t.itemCode] || t.itemCode,
-      unitId: null, qty: t.qty, recipient: t.party || '', department: t.department || '',
-      destination: t.destination || '', purpose: t.purpose || '', issueDate: t.txnDate || '',
-      slipNo: t.slipNo || '', expectedReturnDate: t.expectedReturnDate || '',
-      overdue: _isOverdue_(t.expectedReturnDate, grace)
-    });
-  });
-
-  rows.sort(function (a, b) {
-    return (a.expectedReturnDate || '9999-99-99').localeCompare(b.expectedReturnDate || '9999-99-99')
-      || String(a.itemName).localeCompare(String(b.itemName));
-  });
-  return { rows: rows };
-}
 
 function handleListTransactions_(user, payload) {
   var f = payload.filters || {};

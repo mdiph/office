@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, "mock-db.json")          # working copy (gitignored)
 SEED_PATH = os.path.join(HERE, "mock-db.seed.json")   # pristine committed seed
 
-STATUSES = ["Available", "Borrowed", "Issued-out", "Under inspection", "Maintenance", "Retired", "Lost"]
+STATUSES = ["Available", "Borrowed", "Under inspection", "Maintenance", "Retired", "Lost"]
 CONDITIONS = ["New", "Good", "Fair", "Damaged", "Needs repair", "Incomplete"]
 ROLES = ["Admin", "Warehouse Staff", "Engineer", "Viewer"]
 # Units in these statuses no longer count as live stock (they stay in the sheet for records).
@@ -616,6 +616,9 @@ def _resolve_target(db, payload):
 
 
 def do_issue(db, user, payload, ctx):
+    """Issue is always a PERMANENT departure (sold / consumed / handed off for good) —
+    there is no return date and no return flow. Anything expected back is a Borrow
+    (see do_borrow), which already has full loan + overdue + return support."""
     require(user["role"], "issue")
     sku, unit = _resolve_target(db, payload)
     recipient = (payload.get("recipient") or "").strip()
@@ -623,26 +626,20 @@ def do_issue(db, user, payload, ctx):
     purpose = (payload.get("purpose") or "").strip()
     if not recipient or not department or not purpose:
         raise ApiError("VALIDATION", "Recipient, department and purpose are required.")
-    exp = payload.get("expectedReturnDate") or None
     slip = f"ISS-{next_counter(db, 'ISS'):06d}"
     notes = (payload.get("notes") or "").strip()
-    permanent_unit = False
+    condition = None
     if unit:
         if unit["status"] != "Available":
             raise ApiError("BLOCKED", f"Unit is {unit['status']}, not Available.")
         qty = 1
-        if exp:
-            # Loan: unit stays, tracked as Issued-out until returned.
-            unit["status"] = "Issued-out"
-            unit["currentHolder"] = recipient
-        else:
-            # Permanent issue (sold / consumed): the unit leaves the database.
-            # The ISSUE transaction is the only record from here on.
-            permanent_unit = True
-            sn = unit.get("serialNumber")
-            trace = f"S/N {sn}" if sn else "no serial"
-            notes = f"{trace}; condition {unit['condition']} at issue" + (f". {notes}" if notes else "")
-            db["units"] = [u for u in db["units"] if u["unitId"] != unit["unitId"]]
+        condition = unit["condition"]
+        # The unit leaves the database for good; the ISSUE transaction (with the
+        # serial number folded into its notes) is the only record from here on.
+        sn = unit.get("serialNumber")
+        trace = f"S/N {sn}" if sn else "no serial"
+        notes = f"{trace}; condition {unit['condition']} at issue" + (f". {notes}" if notes else "")
+        db["units"] = [u for u in db["units"] if u["unitId"] != unit["unitId"]]
     else:
         qty = int(payload.get("qty") or 0)
         if qty <= 0:
@@ -653,12 +650,10 @@ def do_issue(db, user, payload, ctx):
     txn = _mk_txn(type="ISSUE", itemCode=sku["itemCode"], unitId=unit["unitId"] if unit else None,
                   qty=qty, slipNo=slip, txnDate=payload.get("txnDate") or today_str(),
                   party=recipient, department=department, destination=payload.get("destination"),
-                  purpose=purpose, expectedReturnDate=exp, notes=notes or None,
-                  condition=unit["condition"] if unit else None, processedBy=user["email"])
+                  purpose=purpose, notes=notes or None, condition=condition, processedBy=user["email"])
     db["transactions"].append(txn)
-    verb = "Issued (permanent, removed)" if permanent_unit else "Issued"
     _audit(db, user["email"], user["role"], "ISSUE", "sku", sku["itemCode"],
-           f"{verb} {qty} to {recipient} ({slip})", "success", ctx)
+           f"Issued {qty} to {recipient} ({slip})", "success", ctx)
     return {"txn": txn}
 
 
@@ -824,63 +819,6 @@ def do_list_borrowed(db, user, payload, ctx):
     return {"rows": rows}
 
 
-def _returnable_issues(db):
-    out = []
-    for t in db["transactions"]:
-        if t["type"] != "ISSUE" or not t.get("expectedReturnDate"):
-            continue
-        returned = any(x["type"] == "RETURN" and x.get("linkedTxnId") == t["txnId"]
-                       for x in db["transactions"])
-        if not returned:
-            out.append(t)
-    return out
-
-
-def do_list_issued(db, user, payload, ctx):
-    """Everything currently issued out: serialized units with status Issued-out,
-    plus quantity ISSUE transactions that carry an expected return and aren't back."""
-    names = {s["itemCode"]: s["name"] for s in db["inventory"]}
-    rows = []
-
-    for u in db["units"]:
-        if u.get("status") != "Issued-out":
-            continue
-        issues = [t for t in db["transactions"]
-                  if t["type"] == "ISSUE" and t.get("unitId") == u["unitId"]]
-        issue = sorted(issues, key=lambda t: t["timestamp"])[-1] if issues else {}
-        rows.append({
-            "kind": "unit",
-            "itemCode": u["itemCode"], "itemName": names.get(u["itemCode"], u["itemCode"]),
-            "unitId": u["unitId"], "qty": 1,
-            "recipient": u.get("currentHolder") or issue.get("party"),
-            "department": issue.get("department"), "destination": issue.get("destination"),
-            "purpose": issue.get("purpose"), "issueDate": issue.get("txnDate"),
-            "slipNo": issue.get("slipNo"), "expectedReturnDate": issue.get("expectedReturnDate"),
-            "overdue": _is_overdue(db, issue.get("expectedReturnDate")),
-        })
-
-    for t in db["transactions"]:
-        if t["type"] != "ISSUE" or t.get("unitId"):
-            continue
-        if not t.get("expectedReturnDate"):
-            continue
-        if any(x["type"] == "RETURN" and x.get("linkedTxnId") == t["txnId"] for x in db["transactions"]):
-            continue
-        rows.append({
-            "kind": "qty",
-            "itemCode": t["itemCode"], "itemName": names.get(t["itemCode"], t["itemCode"]),
-            "unitId": None, "qty": t.get("qty"),
-            "recipient": t.get("party"), "department": t.get("department"),
-            "destination": t.get("destination"), "purpose": t.get("purpose"),
-            "issueDate": t.get("txnDate"), "slipNo": t.get("slipNo"),
-            "expectedReturnDate": t.get("expectedReturnDate"),
-            "overdue": _is_overdue(db, t.get("expectedReturnDate")),
-        })
-
-    rows.sort(key=lambda r: (r["expectedReturnDate"] or "9999-99-99", r["itemName"]))
-    return {"rows": rows}
-
-
 def do_list_transactions(db, user, payload, ctx):
     f = payload.get("filters") or {}
     rows = sorted(db["transactions"], key=lambda r: r["timestamp"], reverse=True)
@@ -906,14 +844,11 @@ def do_get_dashboard(db, user, payload, ctx):
     skus = [s for s in db["inventory"] if s["active"]]
     units = db["units"]
     active_units = [u for u in units if u["status"] not in TERMINAL_STATUSES]
-    borrowed_units = [u for u in units if u["status"] == "Borrowed"]
-    issued_units = [u for u in units if u["status"] == "Issued-out"]
     inspection_units = [u for u in units if u["status"] == "Under inspection"]
 
     open_borrows = _open_borrows(db)
     borrowed_qty = sum(b["outstanding"] for b in open_borrows)
     overdue = [b for b in open_borrows if b["overdue"]]
-    returnable_issue_qty = sum(t["qty"] for t in _returnable_issues(db))
 
     qty_total = sum(s["quantityOnHand"] for s in skus if s["trackingType"] == "quantity")
     low_stock = [s for s in skus if s["trackingType"] == "quantity"
@@ -950,7 +885,6 @@ def do_get_dashboard(db, user, payload, ctx):
             "totalStock": len(active_units) + qty_total,
             "available": len([u for u in units if u["status"] == "Available"]) + qty_total,
             "borrowed": borrowed_qty,
-            "outside": borrowed_qty + returnable_issue_qty,
             "overdue": len(overdue),
             "lowStock": len(low_stock),
             "underInspection": len(inspection_units),
@@ -1089,7 +1023,7 @@ HANDLERS = {
     "addUnits": do_add_units, "updateUnit": do_update_unit,
     "receive": do_receive, "issue": do_issue, "borrow": do_borrow,
     "returnItems": do_return, "clearInspection": do_clear_inspection,
-    "itemHistory": do_item_history, "listBorrowed": do_list_borrowed, "listIssued": do_list_issued,
+    "itemHistory": do_item_history, "listBorrowed": do_list_borrowed,
     "listTransactions": do_list_transactions, "getDashboard": do_get_dashboard,
     "exportData": do_export_data, "listAudit": do_list_audit,
     "uploadImage": do_upload_image,

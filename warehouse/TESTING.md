@@ -15,10 +15,10 @@ for a clean slate.
 - [ ] Wrong password → click the **Sign in** button (not just Enter) → inline error on the card + toast, both saying "Invalid credentials."; button re-enables.
 - [ ] Sign in as `admin@warehouse.local / admin123`. Dashboard loads with tiles + 3 charts.
 - [ ] Sign out. Sign in as `view@warehouse.local / view123`.
-- [ ] Viewer sidebar shows **only** Dashboard, Inventory, Issue / Outgoing, Borrowed Items, Item History, Reports, Settings (no Receive/Borrow/Users/Audit; Issue page shows the list but not the form).
+- [ ] Viewer sidebar shows **only** Dashboard, Inventory, Issue / Outgoing, Borrowed Items, Item History, Reports, Settings (no Receive/Users/Audit; there is no separate Borrow item; the Issue page shows the recent-issues log but not the form).
 - [ ] As Viewer, visiting `#/receive` shows "You do not have access to this page."
 - [ ] As Viewer, Reports page: running any report is refused / no export buttons where disallowed.
-- [ ] Sign in as `eng@warehouse.local / eng123`. Borrow page is available; borrower name is locked to the engineer.
+- [ ] Sign in as `eng@warehouse.local / eng123`. Issue / Outgoing shows the form with **only the Loan option** (no type selector, no "Permanent"); borrower name is locked to the engineer.
 - [ ] 5 bad passwords in a row → account locks for ~15 min ("Account locked").
 
 ## Inventory (edit-only)
@@ -40,24 +40,22 @@ for a clean slate.
 - [ ] Photo: "Take / choose photo" → pick an image → thumbnail appears, item saves with it.
 - [ ] Photo: "Use webcam" (desktop with a camera) → live preview modal → Capture → thumbnail appears. Deny the camera permission → clean error toast, no crash. On a machine with no camera the button is hidden.
 
-## Borrow → Borrowed Items → Return
+## Issue / Outgoing (permanent + loan in one page)
 
-- [ ] Borrow a serialized unit (due date required) → success toast; unit status = Borrowed.
-- [ ] Borrowed Items page lists it; set the due date in the past via a new borrow → row highlighted red + "Overdue".
-- [ ] Borrowed Items → row's **Return** button → *Process return* → condition **Good**, no inspection → unit back to Available.
-- [ ] Borrow again, Return with condition **Damaged** → "requires inspection" auto-checks → unit status = Under inspection.
+- [ ] As Admin/Staff the form has a **Type** selector: "Permanent" and "Loan / borrow". Below the form is a **"Recently issued (permanent)"** log.
+- [ ] **Permanent + serialized**: pick item + unit, fill recipient/dept/purpose → *Issue permanently* → the unit **disappears** from the item's Units table and stock counts; item History keeps an ISSUE row with recipient, purpose, and the serial number in the notes; it shows in the "Recently issued" log.
+- [ ] **Permanent + quantity**: issue 5 → stock drops by 5, nothing "out".
+- [ ] Sending an expectedReturnDate on a permanent issue has no effect — it's still permanent.
+- [ ] **Loan mode**: switch Type to "Loan / borrow" → fields become borrower / employee ID / project / expected return date (required) → *Record borrow* → item marked Borrowed and appears on **Borrowed Items**.
+
+## Borrowed Items → Return
+
+- [ ] A loan recorded from Issue's "Loan" type appears here; set a past due date → row highlighted red + "Overdue".
+- [ ] Row's **Return** button → *Process return* → condition **Good**, no inspection → unit back to Available.
+- [ ] Return with condition **Damaged** → "requires inspection" auto-checks → unit status = Under inspection.
 - [ ] Item detail → unit row → **Clear inspection** → choose Available → status updates.
-- [ ] Quantity borrow of 5, return 3 good + 1 damaged → outstanding = 1; quantity on hand rose by 3 only.
+- [ ] Quantity loan of 5, return 3 good + 1 damaged → outstanding = 1; quantity on hand rose by 3 only.
 - [ ] Try to return more than outstanding → blocked.
-
-## Issue / Outgoing
-
-- [ ] Page opens with a **"Currently issued out"** table (serialized units at status Issued-out + quantity issues with an expected return still out).
-- [ ] Issue a serialized unit **with an expected return date** → status = Issued-out, appears in the table; overdue ones highlighted red.
-- [ ] Issue a serialized unit **with no return date** (sold to customer) → the unit **disappears** from the item's Units table and from stock counts. Only the item History keeps it: an ISSUE row showing the recipient, purpose, and the serial number in the notes.
-- [ ] Issue quantity stock with an expected return → shows as `×N`; with no return date it isn't listed (stock just drops).
-- [ ] Search box filters the list; Print / CSV / Excel act on the issued list.
-- [ ] As a Viewer/Engineer: the page and list are visible, but the "Record an issue" form is hidden.
 
 ## Item History
 

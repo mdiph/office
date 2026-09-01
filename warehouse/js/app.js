@@ -10,7 +10,6 @@ import { viewDashboard } from "./views/dashboard.js";
 import { viewInventory, viewItemDetail } from "./views/inventory.js";
 import { viewReceive } from "./views/receive.js";
 import { viewIssue } from "./views/issue.js";
-import { viewBorrow } from "./views/borrow.js";
 import { viewBorrowed } from "./views/borrowed.js";
 import { viewHistory } from "./views/history.js";
 import { viewReports } from "./views/reports.js";
@@ -23,7 +22,6 @@ const ROUTES = [
   { path: "inventory", label: "Inventory", icon: "box", cap: "view", render: viewInventory },
   { path: "receive", label: "Receive", icon: "arrow-in", cap: "receive", render: viewReceive },
   { path: "issue", label: "Issue / Outgoing", icon: "arrow-out", cap: "view", render: viewIssue },
-  { path: "borrow", label: "Borrow", icon: "borrow", cap: "borrow", render: viewBorrow },
   { path: "borrowed", label: "Borrowed Items", icon: "list", cap: "view", render: viewBorrowed },
   { path: "history", label: "Item History", icon: "history", cap: "view", render: viewHistory },
   { path: "reports", label: "Reports & Export", icon: "chart", cap: "view", render: viewReports },

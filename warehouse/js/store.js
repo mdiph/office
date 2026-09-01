@@ -42,7 +42,7 @@ const CAPS = {
   receive: ["Admin", "Warehouse Staff"],
   issue: ["Admin", "Warehouse Staff"],
   return: ["Admin", "Warehouse Staff"],
-  borrow: ["Admin", "Warehouse Staff", "Engineer"],
+  borrow_self: ["Admin", "Warehouse Staff", "Engineer"],
   borrow_behalf: ["Admin", "Warehouse Staff"],
   users: ["Admin"],
   audit: ["Admin"],

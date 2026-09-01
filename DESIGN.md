@@ -101,7 +101,7 @@ Sheets (tabs) in one Spreadsheet:
 
 ## 6. Vocabularies (Q22)
 
-- **Status** (fixed enum): `Available`, `Borrowed`, `Issued-out` (loaned, expected back), `Under inspection`, `Maintenance`, `Retired`, `Lost`. `Retired` / `Lost` units stay in the `Units` sheet but don't count as live stock. A **permanent issue does not use a status** — see below.
+- **Status** (fixed enum): `Available`, `Borrowed`, `Under inspection`, `Maintenance`, `Retired`, `Lost`. `Retired` / `Lost` units stay in the `Units` sheet but don't count as live stock. A **permanent issue does not use a status** — the serialized unit row is deleted (see below).
 - **Condition** (fixed enum): `New`, `Good`, `Fair`, `Damaged`, `Needs repair`, `Incomplete`.
 - **Category:** Admin-managed `Categories` tab (no on-the-fly add), seeded with starters. Settings page supports add / rename (cascades to `Inventory`) / delete (blocked while in use).
 - **Brand / Model:** free text with `<datalist>` autocomplete from existing values.
@@ -115,18 +115,18 @@ Sheets (tabs) in one Spreadsheet:
 - Return more than outstanding → reject (good + damaged ≤ outstanding borrowed qty).
 - `trackingType` change → blocked entirely once any transaction exists. Other SKU fields editable anytime.
 - Soft-delete blocked while stock > 0 or open transactions.
-- Borrow **requires** `expectedReturnDate`. Issue may omit it (permanent issue — leaves inventory, never overdue).
+- Borrow **requires** `expectedReturnDate`. Issue never has one — it is always permanent.
 - User-set transaction date allowed (defaults now); audit timestamp is always real server time.
 
 ## 8. Transaction flows
 
 - **Receive (Q28e):** two modes — "New item" (creates SKU) and "Restock existing" (pick SKU, add qty / register more units). Records `processedBy` + timestamp automatically.
-- **Issue:** item, recipient, department, destination, purpose, date, expected return (optional), processedBy.
-  - **With** an expected-return date → **loan**: serialized unit → `Issued-out`, appears in the Issue page's "Currently issued out" list, returnable from Borrowed Items... actually returns are borrow-only, so a loaned *issue* currently has no return flow (known gap).
-  - **Without** an expected-return date → **permanent** (sold / consumed): the serialized **unit row is deleted** from `Units`. The append-only `ISSUE` transaction is the only record — it captures the serial number and condition-at-issue in `notes`. Quantity stock is simply deducted.
-  - The "Currently issued out" list (loans + returnable quantity issues, overdue highlighted) is viewable by all roles; the issue form is Staff/Admin only.
+- **Issue / Outgoing (one page)** — everything leaving the warehouse. The form has a **type** choice:
+  - **Permanent** (sold to a customer, consumed, handed off for good): recipient, department, destination, purpose, date. Serialized → the **unit row is deleted** from `Units`; the append-only `ISSUE` transaction is the only record (serial number + condition-at-issue folded into `notes`). Quantity → stock simply deducted. No return date, no return flow. Staff/Admin only.
+  - **Loan / borrow**: borrower name, employee ID, department, project/site, purpose, borrow date, **expected return date (required)**, "on behalf of" (Staff/Admin). Routes through the **Borrow** action. Engineers see only this option (self-borrow, borrower locked to them); the type selector is hidden for them.
+  - Below the form: a **"Recently issued (permanent)"** log from the `ISSUE` transactions (`listTransactions`). There is no live "currently issued out" — permanent issues are gone the moment they happen; loans live on Borrowed Items.
 - **Inventory is edit-only:** new items and additional stock are created exclusively through **Receive** (so every stock change has a ledger entry). The Inventory list and item-detail pages allow editing the SKU and individual units, archiving, and clearing inspection — no "Add item" / "Add units".
-- **Borrow:** borrower name, employee ID, department, item, unit/serial, qty, purpose, project/site, borrow date, **expected return date (required)**, processedBy (auto = current user). Sets unit status → `Borrowed`.
+- **Borrow (action, no standalone page):** borrower name, employee ID, department, item, unit/serial, qty, purpose, project/site, borrow date, **expected return date (required)**, processedBy. Sets unit status → `Borrowed`. Invoked from Issue's "Loan" type.
 - **Returns (Q18):** processed from the **Borrowed Items** page — each open borrow has a "Return" button (no separate Returns page). Records return date, returnedBy, receivedBy (auto = current user), condition dropdown, "requires inspection" checkbox (auto-checks when condition ≠ Good, manually overridable), damage/missing, notes. Not flagged → immediate flip to `Available`. Flagged → status `Under inspection`; separate `clearInspection` action (Staff/Admin) → `Available` / `Maintenance` / `Retired`. Quantity items: "qty returned good" + "qty damaged/missing"; good → `quantityOnHand`, damaged → write-off note.
 - **Borrowed Items page:** open borrows, overdue highlighted.
 - **Item History:** unified timeline filtered by `itemCode` / `unitId`, sorted by time.
@@ -134,7 +134,7 @@ Sheets (tabs) in one Spreadsheet:
 ## 9. Dashboard (Q16) & charts (Q17, Q30)
 
 - One on-demand `getDashboard` action computes everything in GAS; `CacheService` 60–120 s TTL.
-- Tiles: **SKUs** (distinct active `Inventory`), **Total units/stock** (active `Units` + Σ `quantityOnHand`), Available, Borrowed, Outside warehouse (Borrowed + returnable Issues), Overdue, Low-stock, plus **Recent transactions** (last 10, "view all" link).
+- Tiles: **SKUs** (distinct active `Inventory`), **Total units/stock** (active `Units` + Σ `quantityOnHand`), Available, Borrowed, Overdue, Low-stock, Under inspection, plus **Recent transactions** (last 10).
 - **No price/value field anywhere.**
 - Overdue = open BORROW or returnable ISSUE where `expectedReturnDate + graceDays < today` (grace default 0, date-only, Spreadsheet TZ).
 - Charts (**Chart.js vendored locally**, `js/vendor/`, pinned): (1) inventory by category bar, (2) 30-day activity by type, (3) stock-status doughnut. GAS pre-shapes the arrays. Graceful degradation if the script fails.
@@ -175,7 +175,7 @@ Sheets (tabs) in one Spreadsheet:
 
 - ≥1024px persistent sidebar; 768–1023px collapsible; <768px hamburger drawer (minimal JS toggle).
 - Dense tables (transactions, audit) → horizontal scroll container. Primary lists (inventory, borrowed) → stacked card layout <768px.
-- Floor flows excellent on phone: Receive (camera), Borrow, Return, inventory lookup. Reports/admin/users desktop-oriented.
+- Floor flows excellent on phone: Receive (camera), Issue / loan, Return, inventory lookup. Reports/admin/users desktop-oriented.
 
 ## 15. Visual identity (Q30)
 

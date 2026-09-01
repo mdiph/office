@@ -98,7 +98,6 @@ var ROUTER = {
 
   itemHistory: handleItemHistory_,
   listBorrowed: handleListBorrowed_,
-  listIssued: handleListIssued_,
   listTransactions: handleListTransactions_,
   getDashboard: handleGetDashboard_,
 

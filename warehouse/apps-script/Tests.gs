@@ -140,10 +140,8 @@ function test_quantityFlow() {
   _throws(function () {
     handleIssue_(admin, { itemCode: code, qty: 99, recipient: 'R', department: 'D', purpose: 'p' }, ctx);
   }, 'BLOCKED', 'cannot issue more than on hand');
-  handleIssue_(admin, { itemCode: code, qty: 4, recipient: 'R', department: 'D', purpose: 'p', expectedReturnDate: '2099-01-01' }, ctx);
-  _assert(skuByCode_(code).quantityOnHand === 6, 'qty on hand 6 after issue');
-  var issued = handleListIssued_();
-  _assert(issued.rows.some(function (r) { return r.itemCode === code && r.qty === 4; }), 'quantity issue with expected return appears in listIssued');
+  handleIssue_(admin, { itemCode: code, qty: 4, recipient: 'R', department: 'D', purpose: 'p' }, ctx);
+  _assert(skuByCode_(code).quantityOnHand === 6, 'qty on hand 6 after issue (issue is always permanent)');
 }
 
 function test_permanentIssueRemovesUnit() {
@@ -151,27 +149,20 @@ function test_permanentIssueRemovesUnit() {
   var ctx = { userAgent: 't' };
   var res = handleReceive_(admin, {
     mode: 'new', name: 'Router', category: 'Power Tools', trackingType: 'serialized',
-    units: [{ serialNumber: 'RTR-9', condition: 'Good', location: 'A-01' }, { condition: 'Good', location: 'A-01' }], purpose: 'stock'
+    units: [{ serialNumber: 'RTR-9', condition: 'Good', location: 'A-01' }], purpose: 'stock'
   }, ctx);
   var code = res.sku.itemCode;
-  var u = unitsOf_(code);
-  var soldUnitId = u[0].unitId, loanUnitId = u[1].unitId;
+  var soldUnitId = unitsOf_(code)[0].unitId;
 
-  // permanent issue -> unit row deleted
+  // issuing a serialized unit is always permanent -> unit row deleted, history keeps the record
   handleIssue_(admin, { itemCode: code, unitId: soldUnitId, recipient: 'Cust', department: 'Sales', purpose: 'sold' }, ctx);
-  _assert(_unitByCode_(soldUnitId) === null, 'permanent issue deletes the unit row');
-  _assert(unitsOf_(code).length === 1, 'SKU now has 1 unit');
+  _assert(_unitByCode_(soldUnitId) === null, 'issuing a unit deletes its row');
+  _assert(unitsOf_(code).length === 0, 'SKU now has 0 units');
   var hist = _historyRows_(code, null);
   var issueTxn = hist.filter(function (h) { return h.type === 'ISSUE' && h.unitId === soldUnitId; })[0];
   _assert(!!issueTxn, 'ISSUE transaction for the sold unit is retained in history');
   _assert(String(issueTxn.notes).indexOf('RTR-9') !== -1, 'serial number captured in the ISSUE transaction notes');
-
-  // loan issue -> unit stays, Issued-out
-  handleIssue_(admin, { itemCode: code, unitId: loanUnitId, recipient: 'Loanee', department: 'QA', purpose: 'loan', expectedReturnDate: '2099-01-01' }, ctx);
-  _assert(_unitByCode_(loanUnitId).status === 'Issued-out', 'loan issue keeps the unit as Issued-out');
-  var li = handleListIssued_();
-  _assert(li.rows.some(function (r) { return r.unitId === loanUnitId; }), 'loan appears in listIssued');
-  _assert(!li.rows.some(function (r) { return r.unitId === soldUnitId; }), 'sold unit not in listIssued');
+  _assert(!issueTxn.expectedReturnDate, 'issue has no expected-return concept');
 }
 
 function test_overReturnRejected() {

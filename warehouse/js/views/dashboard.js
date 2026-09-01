@@ -14,7 +14,6 @@ export async function viewDashboard() {
     ["Total stock", t.totalStock],
     ["Available", t.available],
     ["Borrowed", t.borrowed],
-    ["Outside warehouse", t.outside],
     ["Overdue", t.overdue, t.overdue > 0 ? "err" : ""],
     ["Low stock", t.lowStock, t.lowStock > 0 ? "warn" : ""],
     ["Under inspection", t.underInspection, t.underInspection > 0 ? "warn" : ""],

@@ -22,8 +22,6 @@ function _computeDashboard_() {
   var open = _openBorrows_();
   var borrowedQty = 0, overdue = [];
   open.forEach(function (b) { borrowedQty += b.outstanding; if (b.overdue) overdue.push(b); });
-  var returnableIssueQty = 0;
-  _returnableIssues_().forEach(function (t) { returnableIssueQty += Number(t.qty || 0); });
 
   var qtyTotal = 0, lowStock = [];
   skus.forEach(function (s) {
@@ -66,7 +64,6 @@ function _computeDashboard_() {
       totalStock: activeUnits.length + qtyTotal,
       available: availUnits.length + qtyTotal,
       borrowed: borrowedQty,
-      outside: borrowedQty + returnableIssueQty,
       overdue: overdue.length,
       lowStock: lowStock.length,
       underInspection: inspection.length

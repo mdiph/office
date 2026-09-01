@@ -8,7 +8,6 @@
     "statuses": [
       "Available",
       "Borrowed",
-      "Issued-out",
       "Under inspection",
       "Maintenance",
       "Retired",
