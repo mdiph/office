@@ -13,19 +13,25 @@ export function renderLogin(root, onSuccess, notice) {
     { name: "password", label: "Password", type: "password", required: true, full: true },
   ]);
 
-  const btn = h("button.btn.btn--primary", { type: "submit", style: "width:100%", text: "Sign in" });
+  // The submit button must be inside <form> (or reference it via a `form` attribute) —
+  // otherwise clicking it does nothing: no submit event, no request, no error shown.
+  const btn = h("button.btn.btn--primary", { type: "submit", style: "width:100%;margin-top:4px", text: "Sign in" });
+  form.el.appendChild(h("div.field.full", btn));
+
+  const errorBox = h("div.badge.badge--err", { style: "display:none;margin-top:10px" });
+
   const card = h("div.login-card", [
     h("h1", { text: CONFIG.APP_NAME }),
     h("div.sub", { text: "Sign in to continue" }),
     notice ? h("div.badge.badge--warn", { text: notice, style: "display:block;margin-bottom:12px" }) : null,
     form.el,
-    h("div", { style: "margin-top:8px" }, btn),
+    errorBox,
     h("div.login-hint", { html: "Mock logins: <span class='mono'>admin@warehouse.local / admin123</span> (also staff / eng / view)." }),
   ]);
-  form.el.appendChild(h("input", { type: "submit", hidden: true }));
 
   form.el.addEventListener("submit", async (e) => {
     e.preventDefault();
+    errorBox.style.display = "none";
     if (!form.validate()) return;
     const { email, password } = form.getValues();
     btn.disabled = true; btn.textContent = "Signing in…";
@@ -35,7 +41,10 @@ export function renderLogin(root, onSuccess, notice) {
       toastOk(`Welcome, ${data.user.name}`);
       onSuccess();
     } catch (err) {
-      toastErr(err.message || "Sign-in failed");
+      const msg = err.message || "Sign-in failed";
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+      toastErr(msg);
       btn.disabled = false; btn.textContent = "Sign in";
     }
   });

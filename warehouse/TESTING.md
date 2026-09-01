@@ -12,6 +12,7 @@ for a clean slate.
 
 ## Auth & RBAC
 
+- [ ] Wrong password → click the **Sign in** button (not just Enter) → inline error on the card + toast, both saying "Invalid credentials."; button re-enables.
 - [ ] Sign in as `admin@warehouse.local / admin123`. Dashboard loads with tiles + 3 charts.
 - [ ] Sign out. Sign in as `view@warehouse.local / view123`.
 - [ ] Viewer sidebar shows **only** Dashboard, Inventory, Issue / Outgoing, Borrowed Items, Item History, Reports, Settings (no Receive/Borrow/Users/Audit; Issue page shows the list but not the form).
