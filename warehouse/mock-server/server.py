@@ -930,18 +930,16 @@ def do_get_dashboard(db, user, payload, ctx):
     if qty_total:
         status_break["Available"] = status_break.get("Available", 0) + qty_total
 
+    # Zero-fill every day in the window so the chart is a real 30-day timeline,
+    # not just the handful of days that happen to have a transaction.
     activity = {}
     start = date.today() - timedelta(days=29)
+    for i in range(30):
+        key = (start + timedelta(days=i)).isoformat()
+        activity[key] = {"RECEIVE": 0, "ISSUE": 0, "BORROW": 0, "RETURN": 0}
     for t in db["transactions"]:
-        try:
-            d = date.fromisoformat(t["txnDate"])
-        except ValueError:
-            continue
-        if d < start:
-            continue
-        key = t["txnDate"]
-        activity.setdefault(key, {"RECEIVE": 0, "ISSUE": 0, "BORROW": 0, "RETURN": 0})
-        if t["type"] in activity[key]:
+        key = str(t.get("txnDate") or "")[:10]
+        if key in activity and t["type"] in activity[key]:
             activity[key][t["type"]] += 1
 
     recent = sorted(db["transactions"], key=lambda r: r["timestamp"], reverse=True)[:10]

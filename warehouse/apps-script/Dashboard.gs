@@ -43,14 +43,19 @@ function _computeDashboard_() {
   units.forEach(function (u) { statusBreak[u.status] = (statusBreak[u.status] || 0) + 1; });
   if (qtyTotal) statusBreak['Available'] = (statusBreak['Available'] || 0) + qtyTotal;
 
+  // Zero-fill every day in the window so the chart is a real 30-day timeline,
+  // not just the handful of days that happen to have a transaction.
   var activity = {};
+  var tz = ss_().getSpreadsheetTimeZone();
   var start = new Date(); start.setDate(start.getDate() - 29);
-  var startStr = Utilities.formatDate(start, ss_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  for (var i = 0; i < 30; i++) {
+    var dd = new Date(start); dd.setDate(start.getDate() + i);
+    var key = Utilities.formatDate(dd, tz, 'yyyy-MM-dd');
+    activity[key] = { date: key, RECEIVE: 0, ISSUE: 0, BORROW: 0, RETURN: 0 };
+  }
   _transactions_().forEach(function (t) {
     var d = String(t.txnDate).slice(0, 10);
-    if (d < startStr) return;
-    if (!activity[d]) activity[d] = { date: d, RECEIVE: 0, ISSUE: 0, BORROW: 0, RETURN: 0 };
-    if (activity[d].hasOwnProperty(t.type)) activity[d][t.type]++;
+    if (activity[d] && activity[d].hasOwnProperty(t.type)) activity[d][t.type]++;
   });
 
   var recent = _transactions_().sort(function (a, b) { return String(b.timestamp).localeCompare(String(a.timestamp)); }).slice(0, 10);

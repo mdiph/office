@@ -18,7 +18,7 @@ export function barChart({ labels, values, label = "Count", horizontal = false }
   b.appendChild(canvas);
   new window.Chart(canvas, {
     type: "bar",
-    data: { labels, datasets: [{ label, data: values, backgroundColor: PALETTE[0] }] },
+    data: { labels, datasets: [{ label, data: values, backgroundColor: PALETTE[0], maxBarThickness: 36 }] },
     options: {
       indexAxis: horizontal ? "y" : "x",
       responsive: true, maintainAspectRatio: false,
@@ -52,12 +52,17 @@ export function stackedBar({ labels, series }) {
     type: "bar",
     data: {
       labels,
-      datasets: series.map((s, i) => ({ label: s.label, data: s.data, backgroundColor: PALETTE[i % PALETTE.length] })),
+      datasets: series.map((s, i) => ({
+        label: s.label, data: s.data, backgroundColor: PALETTE[i % PALETTE.length], maxBarThickness: 22,
+      })),
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: "bottom" } },
-      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+      scales: {
+        x: { stacked: true, ticks: { maxRotation: 60, minRotation: 0, autoSkip: true, autoSkipPadding: 8 } },
+        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+      },
     },
   });
   return b;
