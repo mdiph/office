@@ -38,7 +38,7 @@ for a clean slate.
 - [ ] **New item / serialized**: choose 2 units with locations → 2 units created.
 - [ ] **Restock existing / quantity**: add 10 → quantity on hand increases by 10.
 - [ ] Photo: "Take / choose photo" → pick an image → thumbnail appears, item saves with it.
-- [ ] Photo: "Use webcam" (desktop with a camera) → live preview modal → Capture → thumbnail appears. Deny the camera permission → clean error toast, no crash. On a machine with no camera the button is hidden.
+- [ ] Photo: "Use webcam" — **must be on `http://localhost` or an HTTPS URL** (browser rule). On localhost with a camera → live preview modal → Capture → thumbnail. Deny permission / no camera / opened via a LAN IP → a clear toast explaining what to do, no crash.
 
 ## Issue / Outgoing (permanent + loan in one page)
 

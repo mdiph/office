@@ -62,6 +62,12 @@ Open **http://localhost:8000/warehouse/** and sign in with `admin@warehouse.loca
 Everything works against the mock: RBAC, borrow/return, image capture (stored as data
 URLs), reports, audit log. When you're happy, wire up the real backend below.
 
+> **Webcam capture:** the "Use webcam" button on the photo field only works on a
+> **secure context** — `http://localhost` / `http://127.0.0.1`, or any HTTPS URL
+> (GitHub Pages qualifies). If you open the app via a LAN IP (`http://192.168.…`)
+> the browser blocks camera access; use "Take / choose photo" there. The button now
+> explains this if you click it in a blocked context.
+
 ---
 
 ## 4. Google Sheets

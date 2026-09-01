@@ -21,9 +21,6 @@ export function photoField({ value = null, label = "Photo" } = {}) {
   const webcamBtn = h("button.btn.btn--sm", { type: "button" }, [icon("camera", 14), "Use webcam"]);
   const clearBtn = h("button.btn.btn--sm.btn--ghost", { type: "button", text: "Remove", style: fileId ? "" : "display:none" });
 
-  const hasWebcam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if (!hasWebcam) webcamBtn.style.display = "none";
-
   async function attach({ base64, mime }, filename) {
     status.textContent = "Uploading…";
     try {
@@ -63,15 +60,33 @@ export function photoField({ value = null, label = "Photo" } = {}) {
 
   const el = h("div.field", [
     h("label", { text: label }),
-    h("div.photo-field", [preview, pickBtn, hasWebcam ? webcamBtn : null, clearBtn, status, input]),
+    h("div.photo-field", [preview, pickBtn, webcamBtn, clearBtn, status, input]),
   ]);
   return { el, getFileId: () => fileId };
 }
 
+// Why the webcam might not be usable, as an actionable message (or null if it should work).
+function webcamBlockReason() {
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    if (!window.isSecureContext) {
+      return "The webcam needs a secure page. Open the app at http://localhost:8000 on this computer, " +
+        "or use the deployed HTTPS (GitHub Pages) URL. You appear to be on " + location.origin + ". " +
+        "Meanwhile use “Take / choose photo”.";
+    }
+    return "This browser does not expose a webcam API. Use “Take / choose photo” instead.";
+  }
+  return null;
+}
+
 // ---- webcam capture modal ----
 function openWebcamCapture(onCapture) {
-  const video = h("video", { autoplay: true, playsinline: true, muted: true,
+  const reason = webcamBlockReason();
+  if (reason) { toastErr(reason); return; }
+
+  const video = h("video", { autoplay: true, muted: true,
     style: "width:100%;max-height:60vh;background:#000;border-radius:8px" });
+  video.setAttribute("playsinline", "");
+  video.muted = true;
   const info = h("div.muted", { style: "font-size:.82rem;margin-top:6px", text: "Starting camera…" });
   const body = h("div", [video, info]);
 
@@ -95,7 +110,15 @@ function openWebcamCapture(onCapture) {
       captureBtn.disabled = false;
     } catch (e) {
       info.textContent = "";
-      toastErr(e && e.name === "NotAllowedError" ? "Camera permission denied." : "Could not start the camera.");
+      const name = e && e.name;
+      const msg = name === "NotAllowedError" || name === "SecurityError"
+        ? "Camera permission was denied. Allow camera access for this site in your browser settings and try again."
+        : name === "NotFoundError" || name === "OverconstrainedError"
+        ? "No camera was found on this device."
+        : name === "NotReadableError"
+        ? "The camera is in use by another app. Close it and try again."
+        : "Could not start the camera" + (e && e.message ? " (" + e.message + ")." : ".");
+      toastErr(msg);
       m.close();
     }
   })();
