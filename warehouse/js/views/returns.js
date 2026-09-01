@@ -27,8 +27,22 @@ export async function viewReturns() {
     cardTitle: (r) => `${r.itemName} — ${r.borrower}`,
   });
 
+  const help = h("div.card", h("div.card__body", { style: "font-size:.88rem" }, [
+    h("b", { text: "What is this page?" }),
+    h("p", { style: "margin:6px 0 0", text:
+      "Returns is where you check borrowed items back into the warehouse. Every row below is an open borrow. " +
+      "Click “Process return” to record who brought it back, who received it, the condition, and any damage or missing pieces." }),
+    h("p", { style: "margin:6px 0 0", text:
+      "If the item is in good condition it goes straight back to Available. If it is damaged or you tick “requires inspection”, " +
+      "the unit is held as “Under inspection” until someone clears it from the item’s detail page. " +
+      "For quantity items you can split the return into good vs. damaged/missing counts." }),
+    h("p", { style: "margin:6px 0 0", class: "muted", text:
+      "Note: this page handles items that were borrowed. Items sent out via Issue / Outgoing are tracked on the Issue page." }),
+  ]));
+
   return h("div.stack", [
     pageHead("Returns", []),
+    help,
     card("Outstanding borrows", table.el),
   ]);
 }
