@@ -97,6 +97,7 @@ Sheets (tabs) in one Spreadsheet:
 - Files set "anyone with link can view" — **product photos are effectively public** (accepted).
 - Upload first (returns ID), then submit form with the ID. Periodic trigger sweeps orphans.
 - One photo per SKU + one optional photo per serialized unit. Replaceable (new file, ID updated, old swept); not versioned.
+- Capture via `<input type="file" accept="image/*" capture="environment">` (file picker / phone camera) **or**, where `navigator.mediaDevices.getUserMedia` is available (desktop webcam, HTTPS/localhost), a live-preview capture modal. Same downscale → base64 → `uploadImage` path for both.
 
 ## 6. Vocabularies (Q22)
 

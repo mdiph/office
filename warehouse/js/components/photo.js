@@ -1,11 +1,15 @@
 import { h } from "../util/dom.js";
 import { icon } from "../util/icons.js";
 import { call } from "../api.js";
+import { openModal } from "./modal.js";
 import { toastErr } from "./toast.js";
 
-// photoField({ value, onChange(fileId) }) -> { el, getFileId }
-// Captures a photo (rear camera on mobile), downscales, uploads to backend,
-// stores the returned fileId.
+const MAX_DIM = 1600;
+const QUALITY = 0.8;
+
+// photoField({ value, label }) -> { el, getFileId }
+// Attach a photo by picking/taking a file, or (where supported) capturing from a webcam.
+// Images are downscaled client-side then uploaded; only the returned fileId is kept.
 export function photoField({ value = null, label = "Photo" } = {}) {
   let fileId = value;
   const preview = h("img", { alt: "", src: previewSrc(fileId), style: fileId ? "" : "display:none" });
@@ -14,21 +18,16 @@ export function photoField({ value = null, label = "Photo" } = {}) {
   input.setAttribute("capture", "environment");
 
   const pickBtn = h("button.btn.btn--sm", { type: "button" }, [icon("camera", 14), "Take / choose photo"]);
+  const webcamBtn = h("button.btn.btn--sm", { type: "button" }, [icon("camera", 14), "Use webcam"]);
   const clearBtn = h("button.btn.btn--sm.btn--ghost", { type: "button", text: "Remove", style: fileId ? "" : "display:none" });
 
-  pickBtn.addEventListener("click", () => input.click());
-  clearBtn.addEventListener("click", () => {
-    fileId = null; preview.style.display = "none"; clearBtn.style.display = "none"; status.textContent = "";
-  });
+  const hasWebcam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (!hasWebcam) webcamBtn.style.display = "none";
 
-  input.addEventListener("change", async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    status.textContent = "Processing…";
+  async function attach({ base64, mime }, filename) {
+    status.textContent = "Uploading…";
     try {
-      const { base64, mime } = await downscale(file, 1600, 0.8);
-      status.textContent = "Uploading…";
-      const res = await call("uploadImage", { dataBase64: base64, mime, filename: file.name });
+      const res = await call("uploadImage", { dataBase64: base64, mime, filename });
       fileId = res.fileId;
       preview.src = res.url || previewSrc(fileId);
       preview.style.display = "";
@@ -38,14 +37,82 @@ export function photoField({ value = null, label = "Photo" } = {}) {
       toastErr("Image upload failed: " + e.message);
       status.textContent = "";
     }
+  }
+
+  pickBtn.addEventListener("click", () => input.click());
+  webcamBtn.addEventListener("click", () => openWebcamCapture(async (shot) => {
+    status.textContent = "Uploading…";
+    await attach(shot, "webcam.jpg");
+  }));
+  clearBtn.addEventListener("click", () => {
+    fileId = null; preview.style.display = "none"; clearBtn.style.display = "none"; status.textContent = "";
+  });
+
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    status.textContent = "Processing…";
+    try {
+      await attach(await downscaleFile(file), file.name);
+    } catch (e) {
+      toastErr("Image upload failed: " + e.message);
+      status.textContent = "";
+    }
     input.value = "";
   });
 
   const el = h("div.field", [
     h("label", { text: label }),
-    h("div.photo-field", [preview, pickBtn, clearBtn, status, input]),
+    h("div.photo-field", [preview, pickBtn, hasWebcam ? webcamBtn : null, clearBtn, status, input]),
   ]);
   return { el, getFileId: () => fileId };
+}
+
+// ---- webcam capture modal ----
+function openWebcamCapture(onCapture) {
+  const video = h("video", { autoplay: true, playsinline: true, muted: true,
+    style: "width:100%;max-height:60vh;background:#000;border-radius:8px" });
+  const info = h("div.muted", { style: "font-size:.82rem;margin-top:6px", text: "Starting camera…" });
+  const body = h("div", [video, info]);
+
+  let stream = null;
+  const m = openModal({ title: "Capture from webcam", body, onClose: stopStream });
+
+  const captureBtn = h("button.btn.btn--primary", { text: "Capture", disabled: true });
+  m.setFooter([h("button.btn", { text: "Cancel", onclick: () => m.close() }), captureBtn]);
+
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  }
+
+  (async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+        .catch(() => navigator.mediaDevices.getUserMedia({ video: true, audio: false }));
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      info.textContent = "Point the camera at the item, then Capture.";
+      captureBtn.disabled = false;
+    } catch (e) {
+      info.textContent = "";
+      toastErr(e && e.name === "NotAllowedError" ? "Camera permission denied." : "Could not start the camera.");
+      m.close();
+    }
+  })();
+
+  captureBtn.addEventListener("click", () => {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) { toastErr("Camera not ready yet."); return; }
+    const scale = Math.min(1, MAX_DIM / Math.max(vw, vh));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(vw * scale);
+    canvas.height = Math.round(vh * scale);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", QUALITY);
+    stopStream();
+    m.close();
+    onCapture({ base64: dataUrl.split(",")[1], mime: "image/jpeg" });
+  });
 }
 
 function previewSrc(fileId) {
@@ -54,20 +121,20 @@ function previewSrc(fileId) {
   return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w400`;
 }
 
-function downscale(file, maxDim, quality) {
+function downscaleFile(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
       let { width, height } = img;
-      const scale = Math.min(1, maxDim / Math.max(width, height));
+      const scale = Math.min(1, MAX_DIM / Math.max(width, height));
       width = Math.round(width * scale);
       height = Math.round(height * scale);
       const canvas = document.createElement("canvas");
       canvas.width = width; canvas.height = height;
       canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      const dataUrl = canvas.toDataURL("image/jpeg", QUALITY);
       resolve({ base64: dataUrl.split(",")[1], mime: "image/jpeg" });
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image")); };
