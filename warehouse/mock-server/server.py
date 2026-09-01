@@ -31,6 +31,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, "mock-db.json")          # working copy (gitignored)
 SEED_PATH = os.path.join(HERE, "mock-db.seed.json")   # pristine committed seed
 
+STATUSES = ["Available", "Borrowed", "Issued-out", "Under inspection", "Maintenance", "Released", "Retired", "Lost"]
+CONDITIONS = ["New", "Good", "Fair", "Damaged", "Needs repair", "Incomplete"]
+ROLES = ["Admin", "Warehouse Staff", "Engineer", "Viewer"]
+TERMINAL_STATUSES = ("Released", "Retired", "Lost")
+
 SESSION_IDLE_MS = 8 * 60 * 60 * 1000
 SESSION_ABS_MS = 24 * 60 * 60 * 1000
 MAX_FAILED = 5
@@ -212,7 +217,7 @@ def do_create_user(db, user, payload, ctx):
     name = (payload.get("name") or "").strip()
     role = payload.get("role") or ""
     password = payload.get("password") or ""
-    if not email or not name or role not in db["config"]["roles"]:
+    if not email or not name or role not in ROLES:
         raise ApiError("VALIDATION", "Name, email and a valid role are required.")
     if len(password) < 8:
         raise ApiError("VALIDATION", "Password must be at least 8 characters.")
@@ -237,7 +242,7 @@ def do_update_user(db, user, payload, ctx):
     if "name" in payload and payload["name"]:
         target["name"] = payload["name"].strip(); changes.append("name")
     if "role" in payload and payload["role"]:
-        if payload["role"] not in db["config"]["roles"]:
+        if payload["role"] not in ROLES:
             raise ApiError("VALIDATION", "Invalid role.")
         target["role"] = payload["role"]; changes.append("role")
     if "active" in payload:
@@ -282,9 +287,9 @@ def do_get_config(db, user, payload, ctx):
         "locations": sorted(db["locations"]),
         "lowStockThreshold": c["lowStockThreshold"],
         "overdueGraceDays": c["overdueGraceDays"],
-        "statuses": c["statuses"],
-        "conditions": c["conditions"],
-        "roles": c["roles"],
+        "statuses": STATUSES,
+        "conditions": CONDITIONS,
+        "roles": ROLES,
     }
 
 
@@ -481,7 +486,7 @@ def do_delete_sku(db, user, payload, ctx):
         raise ApiError("NOT_FOUND", "Item not found.")
     if sku["trackingType"] == "quantity" and sku["quantityOnHand"] > 0:
         raise ApiError("BLOCKED", "Cannot delete: stock on hand.")
-    open_units = [u for u in units_of(db, sku["itemCode"]) if u["status"] not in ("Retired", "Lost")]
+    open_units = [u for u in units_of(db, sku["itemCode"]) if u["status"] not in TERMINAL_STATUSES]
     if sku["trackingType"] == "serialized" and open_units:
         raise ApiError("BLOCKED", "Cannot delete: active units exist.")
     sku["active"] = False
@@ -501,7 +506,7 @@ def do_add_units(db, user, payload, ctx):
     for i, spec in enumerate(payload.get("units") or [], start=1):
         cond = spec.get("condition") or "Good"
         loc = spec.get("location")
-        if cond not in db["config"]["conditions"]:
+        if cond not in CONDITIONS:
             raise ApiError("VALIDATION", "Unknown condition.")
         if not loc or loc not in db["locations"]:
             raise ApiError("VALIDATION", "Each unit needs a known location.")
@@ -527,7 +532,7 @@ def do_update_unit(db, user, payload, ctx):
         raise ApiError("NOT_FOUND", "Unit not found.")
     patch = payload.get("patch") or {}
     if "condition" in patch:
-        if patch["condition"] not in db["config"]["conditions"]:
+        if patch["condition"] not in CONDITIONS:
             raise ApiError("VALIDATION", "Unknown condition.")
         u["condition"] = patch["condition"]
     if "location" in patch:
@@ -622,7 +627,8 @@ def do_issue(db, user, payload, ctx):
     if unit:
         if unit["status"] != "Available":
             raise ApiError("BLOCKED", f"Unit is {unit['status']}, not Available.")
-        unit["status"] = "Issued-out"
+        # Loan (expected return date) stays Issued-out; permanent issue -> Released.
+        unit["status"] = "Issued-out" if exp else "Released"
         unit["currentHolder"] = recipient
         qty = 1
     else:
@@ -695,7 +701,7 @@ def do_return(db, user, payload, ctx):
     if outstanding <= 0:
         raise ApiError("BLOCKED", "This borrow is already fully returned.")
     condition = payload.get("condition") or "Good"
-    if condition not in db["config"]["conditions"]:
+    if condition not in CONDITIONS:
         raise ApiError("VALIDATION", "Unknown condition.")
     requires_inspection = bool(payload.get("requiresInspection")) or condition != "Good"
     returned_by = (payload.get("returnedBy") or "").strip() or btxn["party"]
@@ -886,7 +892,7 @@ def do_list_transactions(db, user, payload, ctx):
 def do_get_dashboard(db, user, payload, ctx):
     skus = [s for s in db["inventory"] if s["active"]]
     units = db["units"]
-    active_units = [u for u in units if u["status"] not in ("Retired", "Lost")]
+    active_units = [u for u in units if u["status"] not in TERMINAL_STATUSES]
     borrowed_units = [u for u in units if u["status"] == "Borrowed"]
     issued_units = [u for u in units if u["status"] == "Issued-out"]
     inspection_units = [u for u in units if u["status"] == "Under inspection"]

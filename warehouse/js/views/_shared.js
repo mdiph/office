@@ -16,12 +16,15 @@ export function card(title, bodyNode, headActions) {
   return c;
 }
 
+export const TERMINAL_STATUSES = ["Released", "Retired", "Lost"];
+
 const STATUS_KIND = {
   Available: "ok",
   Borrowed: "info",
   "Issued-out": "info",
   "Under inspection": "warn",
   Maintenance: "warn",
+  Released: "mut",
   Retired: "mut",
   Lost: "err",
 };

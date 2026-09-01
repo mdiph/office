@@ -232,7 +232,7 @@ function handleDeleteSku_(user, payload, ctx) {
     if (sku.trackingType === 'quantity' && Number(sku.quantityOnHand || 0) > 0) {
       throw new ApiError('BLOCKED', 'Cannot delete: stock on hand.');
     }
-    var openUnits = unitsOf_(sku.itemCode).filter(function (u) { return ['Retired', 'Lost'].indexOf(u.status) === -1; });
+    var openUnits = unitsOf_(sku.itemCode).filter(function (u) { return TERMINAL_STATUSES.indexOf(u.status) === -1; });
     if (sku.trackingType === 'serialized' && openUnits.length) {
       throw new ApiError('BLOCKED', 'Cannot delete: active units exist.');
     }

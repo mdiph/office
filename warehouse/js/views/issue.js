@@ -74,7 +74,12 @@ export async function viewIssue() {
         location.reload();
       } catch (e) { toastErr(e.message); }
     }));
-    formSection = card("Record an issue", h("div.stack", [picker.el, form.el, h("div", save)]));
+    formSection = card("Record an issue", h("div.stack", [
+      h("div.muted", { style: "font-size:.82rem", text:
+        "With an expected-return date the item is tracked as a loan and stays in this list. " +
+        "Leave it blank for a permanent issue (to a customer, consumed, etc.) — a serialized unit is then marked Released and drops out of active inventory; quantity stock is simply deducted." }),
+      picker.el, form.el, h("div", save),
+    ]));
   }
 
   return h("div.stack", [

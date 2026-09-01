@@ -77,8 +77,10 @@ function recomputeFromLedger() {
     txns.forEach(function (t) {
       if (t.type === 'RECEIVE' && !t.unitId && t.itemCode) qty[t.itemCode] = (qty[t.itemCode] || 0) + Number(t.qty || 0);
       if (t.type === 'ISSUE') {
-        if (t.unitId && unitMap[t.unitId]) { unitMap[t.unitId]._status = 'Issued-out'; unitMap[t.unitId]._holder = t.party; }
-        else qty[t.itemCode] = (qty[t.itemCode] || 0) - Number(t.qty || 0);
+        if (t.unitId && unitMap[t.unitId]) {
+          unitMap[t.unitId]._status = t.expectedReturnDate ? 'Issued-out' : 'Released';
+          unitMap[t.unitId]._holder = t.party;
+        } else qty[t.itemCode] = (qty[t.itemCode] || 0) - Number(t.qty || 0);
       }
       if (t.type === 'BORROW') {
         if (t.unitId && unitMap[t.unitId]) { unitMap[t.unitId]._status = 'Borrowed'; unitMap[t.unitId]._holder = t.party; }
@@ -96,7 +98,7 @@ function recomputeFromLedger() {
     });
 
     units.forEach(function (u) {
-      if (['Retired', 'Lost', 'Maintenance'].indexOf(u.status) !== -1) return; // don't override terminal states
+      if (['Retired', 'Lost', 'Maintenance'].indexOf(u.status) !== -1) return; // don't override manually-set terminal states
       _setUnit_(u, { status: u._status, currentHolder: u._holder });
     });
     _skus_().forEach(function (s) {

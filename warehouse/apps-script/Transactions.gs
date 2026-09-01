@@ -88,7 +88,9 @@ function handleIssue_(user, payload, ctx) {
     var qty;
     if (t.unit) {
       if (t.unit.status !== 'Available') throw new ApiError('BLOCKED', 'Unit is ' + t.unit.status + ', not Available.');
-      _setUnit_(t.unit, { status: 'Issued-out', currentHolder: recipient });
+      // Loan (has an expected return date) stays visible as Issued-out; a permanent
+      // issue (no return date) is Released — it leaves active inventory.
+      _setUnit_(t.unit, { status: exp ? 'Issued-out' : 'Released', currentHolder: recipient });
       qty = 1;
     } else {
       qty = parseInt(payload.qty, 10) || 0;

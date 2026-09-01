@@ -21,7 +21,9 @@ var LOCK_MINUTES = 15;
 var EXPORT_CAP = 50000;
 var LOCK_TIMEOUT_MS = 25000;
 
-var STATUSES = ['Available', 'Borrowed', 'Issued-out', 'Under inspection', 'Maintenance', 'Retired', 'Lost'];
+var STATUSES = ['Available', 'Borrowed', 'Issued-out', 'Under inspection', 'Maintenance', 'Released', 'Retired', 'Lost'];
+// Terminal statuses: the unit has left active inventory for good.
+var TERMINAL_STATUSES = ['Released', 'Retired', 'Lost'];
 var CONDITIONS = ['New', 'Good', 'Fair', 'Damaged', 'Needs repair', 'Incomplete'];
 var ROLES = ['Admin', 'Warehouse Staff', 'Engineer', 'Viewer'];
 

@@ -15,7 +15,7 @@ function _computeDashboard_() {
   var cfg = configMap_();
   var lowThreshold = Number(cfg.lowStockThreshold || 5);
 
-  var activeUnits = units.filter(function (u) { return ['Retired', 'Lost'].indexOf(u.status) === -1; });
+  var activeUnits = units.filter(function (u) { return TERMINAL_STATUSES.indexOf(u.status) === -1; });
   var availUnits = units.filter(function (u) { return u.status === 'Available'; });
   var inspection = units.filter(function (u) { return u.status === 'Under inspection'; });
 

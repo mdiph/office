@@ -1,7 +1,7 @@
 import { h } from "../util/dom.js";
 import { call } from "../api.js";
 import { getInventory, invalidateInventory, getConfig, can } from "../store.js";
-import { pageHead, card, btn, statusBadge, conditionBadge, withBusy, photoUrl } from "./_shared.js";
+import { pageHead, card, btn, statusBadge, conditionBadge, withBusy, photoUrl, TERMINAL_STATUSES } from "./_shared.js";
 import { dataTable } from "../components/table.js";
 import { buildForm } from "../components/form.js";
 import { openModal } from "../components/modal.js";
@@ -18,15 +18,25 @@ export async function viewInventory({ navigate }) {
   const fStatus = h("select", [h("option", { value: "", text: "All statuses" }), ...cfg.statuses.map((c) => h("option", { value: c, text: c }))]);
   const fLoc = h("select", [h("option", { value: "", text: "All locations" }), ...cfg.locations.map((c) => h("option", { value: c, text: c }))]);
   const fType = h("select", [h("option", { value: "", text: "Any type" }), h("option", { value: "serialized", text: "Serialized" }), h("option", { value: "quantity", text: "Quantity" })]);
+  const showAll = h("input", { type: "checkbox" });
+  const showAllRow = h("label", { style: "display:flex;gap:6px;align-items:center;white-space:nowrap" }, [showAll, "Show archived / released"]);
 
   const unitsBy = {};
   units.forEach((u) => (unitsBy[u.itemCode] ||= []).push(u));
+  const liveUnits = (code) => (unitsBy[code] || []).filter((u) => !TERMINAL_STATUSES.includes(u.status));
 
   function rowStatus(s) {
     if (s.trackingType === "quantity") return s.quantityOnHand > 0 ? "In stock" : "Empty";
-    const us = unitsBy[s.itemCode] || [];
+    const us = liveUnits(s.itemCode);
     const avail = us.filter((u) => u.status === "Available").length;
-    return `${avail}/${us.length} available`;
+    const gone = (unitsBy[s.itemCode] || []).length - us.length;
+    return `${avail}/${us.length} available` + (gone && showAll.checked ? ` (+${gone} removed)` : "");
+  }
+
+  function isDormant(s) {
+    if (!s.active) return true;
+    if (s.trackingType === "serialized") return (unitsBy[s.itemCode] || []).length > 0 && liveUnits(s.itemCode).length === 0;
+    return false;
   }
 
   const table = dataTable({
@@ -50,6 +60,7 @@ export async function viewInventory({ navigate }) {
   function apply() {
     const q = search.value.trim().toLowerCase();
     let list = skus.slice();
+    if (!showAll.checked) list = list.filter((s) => !isDormant(s));
     if (fCat.value) list = list.filter((s) => s.category === fCat.value);
     if (fType.value) list = list.filter((s) => s.trackingType === fType.value);
     if (fLoc.value) list = list.filter((s) => (unitsBy[s.itemCode] || []).some((u) => u.location === fLoc.value));
@@ -64,6 +75,7 @@ export async function viewInventory({ navigate }) {
     table.setRows(list);
   }
   [search, fCat, fStatus, fLoc, fType].forEach((el) => el.addEventListener("input", apply));
+  showAll.addEventListener("change", apply);
   apply();
 
   const actions = [];
@@ -78,7 +90,7 @@ export async function viewInventory({ navigate }) {
           text: "New items and additional stock are added from Receive. Here you can edit item details and individual units." })
       : null,
     card(null, h("div.stack", [
-      h("div.toolbar", [search, fType, fCat, fStatus, fLoc]),
+      h("div.toolbar", [search, fType, fCat, fStatus, fLoc, showAllRow]),
       table.el,
     ])),
   ]);
@@ -163,6 +175,9 @@ export async function viewItemDetail({ args, navigate }) {
 
   let unitsCard = null;
   if (sku.trackingType === "serialized") {
+    const liveUnits = units.filter((u) => !TERMINAL_STATUSES.includes(u.status));
+    const removedCount = units.length - liveUnits.length;
+    const showRemoved = h("input", { type: "checkbox" });
     const ut = dataTable({
       columns: [
         { key: "unitId", label: "Unit", render: (u) => h("span.mono", { text: u.unitId }) },
@@ -178,10 +193,15 @@ export async function viewItemDetail({ args, navigate }) {
           return wrap;
         } },
       ],
-      rows: units,
-      emptyText: "No units yet.",
+      rows: liveUnits,
+      emptyText: "No active units.",
     });
-    unitsCard = card(`Units (${units.length})`, ut.el);
+    showRemoved.addEventListener("change", () => ut.setRows(showRemoved.checked ? units : liveUnits));
+    const head = removedCount
+      ? h("label", { style: "display:flex;gap:6px;align-items:center;font-weight:400;font-size:.82rem" },
+          [showRemoved, `Show ${removedCount} removed (released / retired / lost)`])
+      : h("span");
+    unitsCard = card(`Units (${liveUnits.length} active${removedCount ? ` · ${removedCount} removed` : ""})`, ut.el, head);
   }
 
   const timeline = h("div.timeline", history.slice().reverse().map((e) => h("div.ev", [

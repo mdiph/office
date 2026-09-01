@@ -11,6 +11,7 @@
       "Issued-out",
       "Under inspection",
       "Maintenance",
+      "Released",
       "Retired",
       "Lost"
     ],

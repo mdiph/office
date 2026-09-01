@@ -100,7 +100,7 @@ Sheets (tabs) in one Spreadsheet:
 
 ## 6. Vocabularies (Q22)
 
-- **Status** (fixed enum): `Available`, `Borrowed`, `Issued-out`, `Under inspection`, `Maintenance`, `Retired`, `Lost`.
+- **Status** (fixed enum): `Available`, `Borrowed`, `Issued-out` (loaned, expected back), `Under inspection`, `Maintenance`, `Released` (issued permanently — sold / consumed / to customer), `Retired`, `Lost`. `Released` / `Retired` / `Lost` are **terminal**: the unit is excluded from active stock counts and hidden from the default Inventory / item-detail views (a "Show all" toggle reveals them).
 - **Condition** (fixed enum): `New`, `Good`, `Fair`, `Damaged`, `Needs repair`, `Incomplete`.
 - **Category:** Admin-managed `Categories` tab (no on-the-fly add), seeded with starters. Settings page supports add / rename (cascades to `Inventory`) / delete (blocked while in use).
 - **Brand / Model:** free text with `<datalist>` autocomplete from existing values.
@@ -120,7 +120,10 @@ Sheets (tabs) in one Spreadsheet:
 ## 8. Transaction flows
 
 - **Receive (Q28e):** two modes — "New item" (creates SKU) and "Restock existing" (pick SKU, add qty / register more units). Records `processedBy` + timestamp automatically.
-- **Issue:** item, recipient, department, destination, purpose, date, expected return (optional), processedBy. The Issue page also lists everything **currently issued out** (serialized units with status `Issued-out` + quantity issues that carry an expected-return date and haven't come back), overdue highlighted. This list is viewable by all roles; the issue form is Staff/Admin only.
+- **Issue:** item, recipient, department, destination, purpose, date, expected return (optional), processedBy.
+  - **With** an expected-return date → treated as a **loan**: serialized unit → `Issued-out`, appears in the Issue page's "Currently issued out" list.
+  - **Without** an expected-return date → **permanent**: serialized unit → `Released` (leaves active inventory, not in the issued-out list); quantity stock is simply deducted.
+  - The "Currently issued out" list (loans + returnable quantity issues, overdue highlighted) is viewable by all roles; the issue form is Staff/Admin only.
 - **Inventory is edit-only:** new items and additional stock are created exclusively through **Receive** (so every stock change has a ledger entry). The Inventory list and item-detail pages allow editing the SKU and individual units, archiving, and clearing inspection — no "Add item" / "Add units".
 - **Borrow:** borrower name, employee ID, department, item, unit/serial, qty, purpose, project/site, borrow date, **expected return date (required)**, processedBy (auto = current user). Sets unit status → `Borrowed`.
 - **Returns (Q18):** processed from the **Borrowed Items** page — each open borrow has a "Return" button (no separate Returns page). Records return date, returnedBy, receivedBy (auto = current user), condition dropdown, "requires inspection" checkbox (auto-checks when condition ≠ Good, manually overridable), damage/missing, notes. Not flagged → immediate flip to `Available`. Flagged → status `Under inspection`; separate `clearInspection` action (Staff/Admin) → `Available` / `Maintenance` / `Retired`. Quantity items: "qty returned good" + "qty damaged/missing"; good → `quantityOnHand`, damaged → write-off note.

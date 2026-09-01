@@ -32,6 +32,7 @@ function runAllTests() {
     test_rbac();
     test_inventoryAndSerializedFlow();
     test_quantityFlow();
+    test_permanentIssueReleased();
     test_overReturnRejected();
     test_vocabEditing();
     test_recompute();
@@ -143,6 +144,26 @@ function test_quantityFlow() {
   _assert(skuByCode_(code).quantityOnHand === 6, 'qty on hand 6 after issue');
   var issued = handleListIssued_();
   _assert(issued.rows.some(function (r) { return r.itemCode === code && r.qty === 4; }), 'quantity issue with expected return appears in listIssued');
+}
+
+function test_permanentIssueReleased() {
+  var admin = _user('admin@test.local');
+  var ctx = { userAgent: 't' };
+  var res = handleReceive_(admin, {
+    mode: 'new', name: 'Router', category: 'Power Tools', trackingType: 'serialized',
+    units: [{ condition: 'Good', location: 'A-01' }, { condition: 'Good', location: 'A-01' }], purpose: 'stock'
+  }, ctx);
+  var code = res.sku.itemCode;
+  var u = unitsOf_(code);
+  // permanent issue -> Released
+  handleIssue_(admin, { itemCode: code, unitId: u[0].unitId, recipient: 'Cust', department: 'Sales', purpose: 'sold' }, ctx);
+  _assert(_unitByCode_(u[0].unitId).status === 'Released', 'permanent issue -> Released');
+  // loan issue -> Issued-out
+  handleIssue_(admin, { itemCode: code, unitId: u[1].unitId, recipient: 'Loanee', department: 'QA', purpose: 'loan', expectedReturnDate: '2099-01-01' }, ctx);
+  _assert(_unitByCode_(u[1].unitId).status === 'Issued-out', 'loan issue -> Issued-out');
+  var li = handleListIssued_();
+  _assert(li.rows.some(function (r) { return r.unitId === u[1].unitId; }), 'loan in listIssued');
+  _assert(!li.rows.some(function (r) { return r.unitId === u[0].unitId; }), 'Released not in listIssued');
 }
 
 function test_overReturnRejected() {
