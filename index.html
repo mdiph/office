@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Applications</title>
+  <style>
+    :root {
+      --bg: #f1f5f9; --surface: #fff; --border: #e2e8f0; --text: #0f172a;
+      --muted: #64748b; --primary: #2563eb; --sidebar: #1e293b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text); background: linear-gradient(160deg, #0f172a, #1e293b 55%, #334155);
+      display: flex; flex-direction: column;
+    }
+    header { padding: 48px 24px 8px; text-align: center; color: #f8fafc; }
+    header h1 { margin: 0 0 6px; font-size: 1.9rem; letter-spacing: -0.02em; }
+    header p { margin: 0; color: #cbd5e1; }
+    main { flex: 1; display: grid; place-items: center; padding: 32px 20px 48px; }
+    .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      width: 100%; max-width: 900px; }
+    .app-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 22px; text-decoration: none; color: inherit; display: flex; flex-direction: column;
+      gap: 10px; box-shadow: 0 10px 30px -12px rgba(0,0,0,.5); transition: transform .12s ease;
+    }
+    .app-card:hover { transform: translateY(-3px); }
+    .app-card .icon { width: 44px; height: 44px; border-radius: 10px; background: var(--primary);
+      display: grid; place-items: center; color: #fff; }
+    .app-card h2 { margin: 0; font-size: 1.15rem; }
+    .app-card p { margin: 0; color: var(--muted); font-size: .9rem; flex: 1; }
+    .app-card .go { color: var(--primary); font-weight: 650; font-size: .9rem; }
+    .app-card.soon { opacity: .55; cursor: default; }
+    .app-card.soon:hover { transform: none; }
+    footer { text-align: center; color: #94a3b8; font-size: .82rem; padding: 0 20px 28px; }
+    footer a { color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Applications</h1>
+    <p>Internal tools</p>
+  </header>
+  <main>
+    <div class="grid">
+      <a class="app-card" href="warehouse/index.html">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/>
+          </svg>
+        </span>
+        <h2>Warehouse Management</h2>
+        <p>Inventory, receiving, borrowing, returns, reports and audit logging for the warehouse.</p>
+        <span class="go">Open &rarr;</span>
+      </a>
+      <div class="app-card soon">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+        <h2>More coming soon</h2>
+        <p>Additional apps will be listed here.</p>
+        <span class="go">&nbsp;</span>
+      </div>
+    </div>
+  </main>
+  <footer>
+    Static launcher &middot; see the <a href="https://github.com/">repository README</a> for setup.
+  </footer>
+</body>
+</html>

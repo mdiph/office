@@ -1,0 +1,40 @@
+/* Design tokens — shared visual language for the warehouse app.
+   Light theme only for v1; structured so a dark theme can be layered later. */
+:root {
+  --c-bg:        #f1f5f9;
+  --c-surface:   #ffffff;
+  --c-surface-2: #f8fafc;
+  --c-border:    #e2e8f0;
+  --c-border-strong: #cbd5e1;
+  --c-text:      #0f172a;
+  --c-text-mut:  #64748b;
+  --c-text-inv:  #f8fafc;
+
+  --c-sidebar:   #1e293b;
+  --c-sidebar-2: #0f172a;
+  --c-sidebar-text: #cbd5e1;
+  --c-sidebar-active: #2563eb;
+
+  --c-primary:   #2563eb;
+  --c-primary-d: #1d4ed8;
+  --c-primary-l: #dbeafe;
+
+  --c-ok:    #16a34a;
+  --c-ok-l:  #dcfce7;
+  --c-warn:  #d97706;
+  --c-warn-l:#fef3c7;
+  --c-err:   #dc2626;
+  --c-err-l: #fee2e2;
+  --c-info:  #0891b2;
+  --c-info-l:#cffafe;
+
+  --radius:   8px;
+  --radius-sm:6px;
+  --shadow:   0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.1);
+  --shadow-lg:0 10px 15px -3px rgba(15,23,42,.1), 0 4px 6px -4px rgba(15,23,42,.1);
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --fs:   14px;
+  --sidebar-w: 232px;
+  --topbar-h:  56px;
+}
