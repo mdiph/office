@@ -57,8 +57,8 @@ The frontend is useless without the backend, so do it in this order:
    python3 -m http.server 8000     # → http://localhost:8000/warehouse/
    ```
 
-To get a few sample items to click through, run `seedDemoData()` in the Apps Script
-editor (§4), then add stock via **Receive** in the app.
+The app starts empty — one admin user, no items. In the app: **Settings** → add your
+Categories and Locations, then **Receive** to bring in stock.
 
 > **Webcam capture:** the "Use webcam" button on the photo field only works on a
 > **secure context** — `http://localhost` / `http://127.0.0.1`, or any HTTPS URL
@@ -83,10 +83,10 @@ editor (§4), then add stock via **Receive** in the app.
    - builds all tabs (`Users`, `Sessions`, `Inventory`, `Units`, `Transactions`,
      `AuditLog`, `Config`, `Categories`, `Locations`, `Counters`),
    - generates the password secret and stores it in the `Config` tab,
-   - creates the Admin from the constants above,
+   - creates the one Admin from the constants above — no other users, no sample data,
    - installs triggers (`purgeSessions` 6h, `sweepOrphanImages` daily).
-7. *(optional)* Run **`seedDemoData`** for a few sample items, then **`runAllTests`**
-   to verify (it works on a throwaway Sheet it deletes afterward).
+7. *(optional)* Run **`runAllTests`** to verify — it works on a throwaway Sheet it
+   deletes afterward, and never touches your data.
 
 Product photos go to a Drive folder named `PHOTO_FOLDER_NAME` (created automatically,
 `anyone-with-link` viewable so `<img>` tags load) — treat them as effectively public.

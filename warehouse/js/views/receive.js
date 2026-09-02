@@ -11,6 +11,16 @@ export async function viewReceive() {
   const [{ skus }, cfg] = await Promise.all([getInventory(true), getConfig()]);
   const activeSkus = skus.filter((s) => s.active);
 
+  if (!cfg.categories.length || !cfg.locations.length) {
+    return h("div.stack", [
+      pageHead("Receive item", []),
+      card(null, h("div.stack", [
+        h("p", { text: "Add at least one category and one location before receiving stock." }),
+        h("button.btn.btn--primary", { text: "Go to Settings", onclick: () => (location.hash = "#/settings") }),
+      ])),
+    ]);
+  }
+
   const modeSel = h("select", [
     h("option", { value: "new", text: "New item (create SKU)" }),
     h("option", { value: "restock", text: "Restock existing item" }),

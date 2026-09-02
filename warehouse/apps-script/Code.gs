@@ -15,9 +15,9 @@
  *      Sign in and change that password immediately.
  *   4. Deploy → New deployment → Web app (Execute as: Me, Access: Anyone).
  *      Put the /exec URL into warehouse/config.js.
+ *   5. In the app: Settings → add your Categories and Locations, then Receive stock.
  *
- * seedDemoData() adds a few sample items. runAllTests() self-checks on a
- * throwaway sheet it deletes afterward.
+ * runAllTests() self-checks on a throwaway sheet it deletes afterward.
  */
 
 // ===== Config ================================================================
@@ -1244,11 +1244,9 @@ function sweepOrphanImages() {
 
 /**
  * One-time setup (run from the Apps Script editor). Creates the tabs, seeds
- * config/vocab, generates the password secret, creates the admin from the
+ * default config, generates the password secret, creates the one admin from the
  * BOOTSTRAP_ADMIN_* constants at the top of this file, and installs triggers.
- * Safe to re-run.
- *
- * seedDemoData() adds a few sample SKUs.
+ * No sample items, categories or locations. Safe to re-run.
  */
 
 function setup() {
@@ -1273,15 +1271,8 @@ function setup() {
   setConfig_('schemaVersion', SCHEMA_VERSION);
   if (!cfg.pepper) { setConfig_('pepper', randomToken_()); _pepperCache = null; }
 
-  // seed vocab
-  if (readAll_('Categories').length === 0) {
-    ['Power Tools', 'Hand Tools', 'Test Equipment', 'Safety Gear', 'Consumables', 'IT Equipment']
-      .forEach(function (c) { appendRow_('Categories', { name: c }); });
-  }
-  if (readAll_('Locations').length === 0) {
-    ['A-01', 'A-02', 'B-01', 'B-02', 'STAGING', 'QUARANTINE']
-      .forEach(function (c) { appendRow_('Locations', { code: c }); });
-  }
+  // Categories and Locations start empty — add your own on the Settings page
+  // before receiving stock.
 
   // bootstrap admin
   var email = String(BOOTSTRAP_ADMIN_EMAIL || '').toLowerCase();
@@ -1346,19 +1337,6 @@ function recomputeFromLedger() {
     });
     Logger.log('Recompute complete.');
   });
-}
-
-function seedDemoData() {
-  var admin = readAll_('Users')[0];
-  var by = admin ? admin.email : 'setup';
-  var ctx = { userAgent: 'seed' };
-  var fakeUser = { email: by, role: 'Admin' };
-  withLock_(function () {
-    _createSku_(fakeUser, { name: 'Cordless Drill 18V', category: 'Power Tools', trackingType: 'serialized', brand: 'DeWalt', model: 'DCD777' }, ctx);
-    _createSku_(fakeUser, { name: 'Digital Multimeter', category: 'Test Equipment', trackingType: 'serialized', brand: 'Fluke', model: '117' }, ctx);
-    _createSku_(fakeUser, { name: 'Nitrile Gloves (Box of 100)', category: 'Consumables', trackingType: 'quantity', brand: 'Ansell' }, ctx);
-  });
-  Logger.log('Demo SKUs created. Use Receive in the app to add stock/units.');
 }
 
 // ===== Main ==================================================================
