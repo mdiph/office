@@ -1,29 +1,33 @@
 /**
- * Warehouse Management — Google Apps Script backend (single file).
+ * Warehouse Management — Google Apps Script backend (whole backend, one file).
  *
- * One doPost(e) entry point (see the Main section) routes {action, token,
- * payload}. Paste this whole file into one Apps Script file. Script Properties
- * to set are listed in the Config section; run setup() once after that.
+ * One doPost(e) entry point (see the Main section) routes {action, token, payload}.
+ * Sections, in load order: Config, Sheets, Crypto, Auth, Inventory, Transactions,
+ * Dashboard, Reports, AuditAndImages, Setup, Main, Tests.
  *
- * Sections below, in load order: Config, Sheets, Crypto, Auth, Inventory,
- * Transactions, Dashboard, Reports, AuditAndImages, Setup, Main, Tests.
+ * SETUP — no Script Properties, no IDs to paste anywhere:
+ *   1. Open your Google Sheet → Extensions → Apps Script. Paste this file in.
+ *      (Creating the project this way BINDS it to that sheet.)
+ *   2. Optionally edit the Config constants just below.
+ *   3. Run setup() once and grant the permission prompts. It builds the tabs,
+ *      generates a password secret (kept in the Config tab), installs triggers,
+ *      and creates the first admin from BOOTSTRAP_ADMIN_EMAIL / _PASSWORD.
+ *      Sign in and change that password immediately.
+ *   4. Deploy → New deployment → Web app (Execute as: Me, Access: Anyone).
+ *      Put the /exec URL into warehouse/config.js.
+ *
+ * seedDemoData() adds a few sample items. runAllTests() self-checks on a
+ * throwaway sheet it deletes afterward.
  */
 
 // ===== Config ================================================================
 
-/**
- * Warehouse Management — Apps Script backend.
- * Constants and Script-Property accessors.
- *
- * Set these Script Properties (Project Settings → Script properties) before running setup():
- *   SPREADSHEET_ID       - the Google Sheet that holds all tabs
- *   DRIVE_FOLDER_ID      - Drive folder for product photos
- *   PASSWORD_PEPPER      - long random string, mixed into every password hash (keep secret)
- *   BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD - first admin (cleared by setup())
- * Optional:
- *   HASH_ITERATIONS      - default 50000
- *   TEST_SPREADSHEET_ID  - separate sheet used by Tests.gs
- */
+// ── edit these ──────────────────────────────────────────────────────────────
+var PHOTO_FOLDER_NAME        = 'Warehouse Photos';   // Drive folder for product photos — created if missing
+var HASH_ITERATIONS          = 50000;                // password hash rounds; lower (e.g. 20000) if logins feel slow
+var BOOTSTRAP_ADMIN_EMAIL    = 'admin@warehouse.local';
+var BOOTSTRAP_ADMIN_PASSWORD = 'ChangeMe123!';       // used only by setup(); change it right after first sign-in
+// ────────────────────────────────────────────────────────────────────────────
 
 var SCHEMA_VERSION = 1;
 
@@ -70,15 +74,6 @@ var SHEETS = {
   Counters:     ['key', 'value']
 };
 
-function props_() { return PropertiesService.getScriptProperties(); }
-function prop_(k, def) { var v = props_().getProperty(k); return v === null || v === undefined ? def : v; }
-function requireProp_(k) {
-  var v = props_().getProperty(k);
-  if (!v) throw new ApiError('CONFIG', 'Missing Script Property: ' + k);
-  return v;
-}
-function hashIterations_() { return parseInt(prop_('HASH_ITERATIONS', '50000'), 10); }
-
 function ApiError(code, message) { this.code = code; this.message = message || code; }
 ApiError.prototype = Object.create(Error.prototype);
 
@@ -88,7 +83,11 @@ ApiError.prototype = Object.create(Error.prototype);
 
 var _ssCache = null;
 function ss_() {
-  if (!_ssCache) _ssCache = SpreadsheetApp.openById(requireProp_('SPREADSHEET_ID'));
+  if (!_ssCache) {
+    _ssCache = SpreadsheetApp.getActiveSpreadsheet();
+    if (!_ssCache) throw new ApiError('CONFIG',
+      'No bound spreadsheet. Create this script from inside the Sheet (Extensions → Apps Script).');
+  }
   return _ssCache;
 }
 
@@ -166,6 +165,17 @@ function setConfig_(key, value) {
   else appendRow_('Config', { key: key, value: value });
 }
 
+// Per-install password secret. Generated once by setup() and kept in the Config
+// tab (never in code, never sent to a client — handleGetConfig_ whitelists keys).
+var _pepperCache = null;
+function pepper_() {
+  if (_pepperCache === null) {
+    _pepperCache = configMap_().pepper || '';
+    if (!_pepperCache) throw new ApiError('CONFIG', 'Password secret missing — run setup().');
+  }
+  return _pepperCache;
+}
+
 function listCol_(name, col) {
   return readAll_(name).map(function (r) { return r[col]; }).filter(function (v) { return v !== '' && v !== null; });
 }
@@ -201,8 +211,7 @@ function _hmac(keyBytes, msgBytes) {
 }
 
 function _deriveHex(password, saltHex, iterations) {
-  var pepper = requireProp_('PASSWORD_PEPPER');
-  var key = Utilities.newBlob(password + '|' + pepper).getBytes();
+  var key = Utilities.newBlob(password + '|' + pepper_()).getBytes();
   var block = Utilities.newBlob(saltHex + '|seed').getBytes();
   var acc = _hmac(key, block);
   var out = acc;
@@ -214,7 +223,7 @@ function _deriveHex(password, saltHex, iterations) {
 }
 
 function hashPassword_(password) {
-  var iterations = hashIterations_();
+  var iterations = HASH_ITERATIONS;
   var saltHex = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 32);
   var hex = _deriveHex(password, saltHex, iterations);
   return saltHex + ':' + iterations + ':' + hex;
@@ -1194,12 +1203,19 @@ function handleListAudit_(user, payload) {
   return { rows: page, nextCursor: cursor + limit < rows.length ? cursor + limit : null, total: rows.length };
 }
 
+// Product-photo folder, found by name (created on first use). Keep the name unique
+// in your Drive — if two folders share it, the first one wins.
+function photoFolder_() {
+  var it = DriveApp.getFoldersByName(PHOTO_FOLDER_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(PHOTO_FOLDER_NAME);
+}
+
 function handleUploadImage_(user, payload, ctx) {
   require_(user.role, 'inventory_write');
   var data = payload.dataBase64 || '';
   if (!data) throw new ApiError('VALIDATION', 'No image data.');
   var mime = payload.mime || 'image/jpeg';
-  var folder = DriveApp.getFolderById(requireProp_('DRIVE_FOLDER_ID'));
+  var folder = photoFolder_();
   var bytes = Utilities.base64Decode(data);
   var ext = mime.indexOf('png') !== -1 ? 'png' : 'jpg';
   var blob = Utilities.newBlob(bytes, mime, 'wms_' + Date.now() + '.' + ext);
@@ -1213,7 +1229,7 @@ function sweepOrphanImages() {
   var referenced = {};
   readAll_('Inventory').forEach(function (s) { if (s.photoFileId) referenced[s.photoFileId] = 1; });
   readAll_('Units').forEach(function (u) { if (u.photoFileId) referenced[u.photoFileId] = 1; });
-  var folder = DriveApp.getFolderById(requireProp_('DRIVE_FOLDER_ID'));
+  var folder = photoFolder_();
   var files = folder.getFiles();
   var cutoff = Date.now() - 24 * 3600 * 1000; // keep very recent uploads (may not be saved yet)
   while (files.hasNext()) {
@@ -1227,17 +1243,16 @@ function sweepOrphanImages() {
 // ===== Setup =================================================================
 
 /**
- * One-time setup. From the Apps Script editor:
- *   1. Set Script Properties (see the Config section header near the top of this file).
- *   2. Run setup()  — creates tabs, seeds config/vocab, creates bootstrap admin, installs triggers.
- *   3. Deploy > New deployment > Web app (Execute as: Me, Access: Anyone).
- *   4. Paste the /exec URL into GAS_WEB_APP_URL in warehouse/config.js.
+ * One-time setup (run from the Apps Script editor). Creates the tabs, seeds
+ * config/vocab, generates the password secret, creates the admin from the
+ * BOOTSTRAP_ADMIN_* constants at the top of this file, and installs triggers.
+ * Safe to re-run.
  *
- * seedDemoData() adds sample inventory — NEVER run in production.
+ * seedDemoData() adds a few sample SKUs.
  */
 
 function setup() {
-  var ss = SpreadsheetApp.openById(requireProp_('SPREADSHEET_ID'));
+  var ss = ss_();
 
   Object.keys(SHEETS).forEach(function (name) {
     var sh = ss.getSheetByName(name);
@@ -1256,6 +1271,7 @@ function setup() {
   if (!cfg.lowStockThreshold) setConfig_('lowStockThreshold', 5);
   if (!cfg.overdueGraceDays) setConfig_('overdueGraceDays', 0);
   setConfig_('schemaVersion', SCHEMA_VERSION);
+  if (!cfg.pepper) { setConfig_('pepper', randomToken_()); _pepperCache = null; }
 
   // seed vocab
   if (readAll_('Categories').length === 0) {
@@ -1268,15 +1284,14 @@ function setup() {
   }
 
   // bootstrap admin
-  var email = prop_('BOOTSTRAP_ADMIN_EMAIL', '');
-  var pw = prop_('BOOTSTRAP_ADMIN_PASSWORD', '');
-  if (email && pw && !userByEmail_(email)) {
+  var email = String(BOOTSTRAP_ADMIN_EMAIL || '').toLowerCase();
+  if (email && !userByEmail_(email)) {
     appendRow_('Users', {
-      email: String(email).toLowerCase(), name: 'Bootstrap Admin', role: 'Admin', active: true,
-      passwordHash: hashPassword_(pw), failedCount: 0, lockedUntil: '', createdAt: nowIso_(), createdBy: 'setup'
+      email: email, name: 'Admin', role: 'Admin', active: true,
+      passwordHash: hashPassword_(BOOTSTRAP_ADMIN_PASSWORD), failedCount: 0, lockedUntil: '',
+      createdAt: nowIso_(), createdBy: 'setup'
     });
-    props_().deleteProperty('BOOTSTRAP_ADMIN_PASSWORD');
-    Logger.log('Created bootstrap admin: ' + email + ' (password property deleted)');
+    Logger.log('Created admin ' + email + ' — sign in and change the password now.');
   }
 
   installTriggers_();
@@ -1459,11 +1474,9 @@ var ROUTER = {
 // ===== Tests =================================================================
 
 /**
- * Hand-rolled test suite. Runs against TEST_SPREADSHEET_ID (a SEPARATE sheet)
- * so it never touches production data.
- *
- * Setup: create a second spreadsheet, put its ID in Script Property TEST_SPREADSHEET_ID,
- * then run runAllTests() from the editor. Check the log.
+ * Hand-rolled test suite. Creates a throwaway spreadsheet, runs against it, and
+ * trashes it — the bound sheet is never touched. Run runAllTests() from the
+ * editor and read the log.
  */
 
 var _T = { pass: 0, fail: 0, log: [] };
@@ -1478,13 +1491,11 @@ function _throws(fn, code, msg) {
 }
 
 function runAllTests() {
-  var testId = requireProp_('TEST_SPREADSHEET_ID');
-  var realId = props_().getProperty('SPREADSHEET_ID');
-  if (testId === realId) throw new Error('TEST_SPREADSHEET_ID must differ from SPREADSHEET_ID');
-
   _T = { pass: 0, fail: 0, log: [] };
-  props_().setProperty('SPREADSHEET_ID', testId);
-  _ssCache = null;
+  var realCache = _ssCache, realPepper = _pepperCache;
+  var tmp = SpreadsheetApp.create('WMS test — ' + new Date().toISOString());
+  _ssCache = tmp;
+  _pepperCache = 'test-pepper';
   try {
     _wipeAndSetup();
     test_crypto();
@@ -1497,8 +1508,9 @@ function runAllTests() {
     test_vocabEditing();
     test_recompute();
   } finally {
-    props_().setProperty('SPREADSHEET_ID', realId);
-    _ssCache = null;
+    _ssCache = realCache;
+    _pepperCache = realPepper;
+    try { DriveApp.getFileById(tmp.getId()).setTrashed(true); } catch (e) {}
   }
   _T.log.push('');
   _T.log.push(_T.fail ? (_T.fail + ' FAILURES / ' + _T.pass + ' passed') : ('ALL ' + _T.pass + ' PASSED'));

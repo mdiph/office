@@ -41,7 +41,6 @@ access control.
 |---|---|
 | A Google account | Sheets, Drive, Apps Script |
 | Python 3 (or any static server) | serving the frontend locally |
-| Node.js + `npm i -g @google/clasp` | pushing `Code.gs` (optional — you can copy-paste instead) |
 
 ---
 
@@ -49,17 +48,17 @@ access control.
 
 The frontend is useless without the backend, so do it in this order:
 
-1. **Google Sheets** (§4) and **Google Drive** (§5) — create the Sheet and photo folder.
-2. **Apps Script backend** (§6) — deploy it, run `setup()`, copy the `/exec` URL.
-3. **Point the frontend at it** (§7) — paste the URL into `config.js`.
-4. Serve the frontend and sign in as the bootstrap admin:
+1. **Google Sheet + Apps Script** (§4) — create the Sheet, add the script, run `setup()`.
+2. **Deploy** (§5) — deploy as a Web app, copy the `/exec` URL.
+3. **Point the frontend at it** (§6) — paste the URL into `config.js`.
+4. Serve the frontend and sign in as the admin:
 
    ```bash
    python3 -m http.server 8000     # → http://localhost:8000/warehouse/
    ```
 
 To get a few sample items to click through, run `seedDemoData()` in the Apps Script
-editor first (§6e), then add stock via **Receive** in the app.
+editor (§4), then add stock via **Receive** in the app.
 
 > **Webcam capture:** the "Use webcam" button on the photo field only works on a
 > **secure context** — `http://localhost` / `http://127.0.0.1`, or any HTTPS URL
@@ -69,77 +68,35 @@ editor first (§6e), then add stock via **Receive** in the app.
 
 ---
 
-## 4. Google Sheets
+## 4. Google Sheet + Apps Script backend
 
-1. Create a new Google Sheet (any name). Leave it empty — `setup()` creates the tabs.
+1. Create a new Google Sheet (any name). Leave it empty — `setup()` builds the tabs.
 2. **File → Settings → Time zone** — set it to your location (all date math uses this).
-3. Copy its **ID** from the URL: `https://docs.google.com/spreadsheets/d/`**`<THIS>`**`/edit`.
-4. (Optional, for tests) create a **second** sheet and note its ID too.
+3. **Extensions → Apps Script.** This opens a script **bound to that Sheet** (which is
+   why no Sheet ID is needed anywhere).
+4. Select everything in the default `Code.gs`, delete it, and paste in the whole of
+   **`warehouse/apps-script/Code.gs`**. Save.
+5. *(optional)* At the top of the file, edit the config constants —
+   `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` (your first login) and
+   `PHOTO_FOLDER_NAME`. The defaults work fine.
+6. Function dropdown → **`setup`** → **Run**. Grant the permission prompts. It:
+   - builds all tabs (`Users`, `Sessions`, `Inventory`, `Units`, `Transactions`,
+     `AuditLog`, `Config`, `Categories`, `Locations`, `Counters`),
+   - generates the password secret and stores it in the `Config` tab,
+   - creates the Admin from the constants above,
+   - installs triggers (`purgeSessions` 6h, `sweepOrphanImages` daily).
+7. *(optional)* Run **`seedDemoData`** for a few sample items, then **`runAllTests`**
+   to verify (it works on a throwaway Sheet it deletes afterward).
 
-Tabs created by `setup()`: `Users`, `Sessions`, `Inventory`, `Units`, `Transactions`,
-`AuditLog`, `Config`, `Categories`, `Locations`, `Counters`.
+Product photos go to a Drive folder named `PHOTO_FOLDER_NAME` (created automatically,
+`anyone-with-link` viewable so `<img>` tags load) — treat them as effectively public.
+
+> **No Script Properties, no manifest to edit.** Apps Script runs V8 and requests the
+> Sheets/Drive/trigger permissions on the first `setup()` run.
 
 ---
 
-## 5. Google Drive
-
-1. Create a folder for product photos (e.g. "Warehouse Photos").
-2. Copy its **ID** from the URL: `https://drive.google.com/drive/folders/`**`<THIS>`**.
-
-Uploaded photos are set to *anyone-with-link can view* so `<img>` tags work for every
-user — treat product photos as effectively public. A daily trigger trashes images no
-sheet row references.
-
----
-
-## 6. Apps Script backend
-
-### 6a. Create the project
-
-**Option A — clasp (keeps the repo as source of truth):**
-
-```bash
-npm i -g @google/clasp
-clasp login
-cd warehouse/apps-script
-clasp create --type webapp --title "Warehouse Backend"   # writes .clasp.json + appsscript.json
-clasp push
-```
-
-**Option B — manual:** create a project at <https://script.google.com>, select all of
-the default `Code.gs`, and paste in the whole of **`warehouse/apps-script/Code.gs`** — the
-entire backend is that one file.
-
-You don't need to touch the project manifest — Apps Script runs V8 by default and
-requests the right permissions (Sheets, Drive, triggers) automatically the first time
-you run `setup()`. Date handling reads the **Sheet's** time zone (File → Settings →
-Time zone on the Spreadsheet), so set that, not the script's.
-
-### 6b. Script properties
-
-Project Settings → **Script properties** → add:
-
-| Key | Value |
-|---|---|
-| `SPREADSHEET_ID` | the Sheet ID from step 4 |
-| `DRIVE_FOLDER_ID` | the Drive folder ID from step 5 |
-| `PASSWORD_PEPPER` | a long random string — **keep secret, never commit** |
-| `BOOTSTRAP_ADMIN_EMAIL` | your email (becomes the first Admin) |
-| `BOOTSTRAP_ADMIN_PASSWORD` | a strong temporary password (deleted by `setup()`) |
-| `HASH_ITERATIONS` | *(optional)* default `50000`; lower if logins feel slow |
-| `TEST_SPREADSHEET_ID` | *(optional)* the second Sheet, for `runAllTests()` |
-
-### 6c. Run setup
-
-In the editor, run **`setup()`** once and grant the permission prompts. It:
-
-- creates all tabs with headers,
-- seeds `Config`, `Categories`, `Locations`,
-- creates the bootstrap Admin and **deletes `BOOTSTRAP_ADMIN_PASSWORD`**,
-- installs time triggers (`purgeSessions` every 6h, `sweepOrphanImages` daily),
-- writes `schemaVersion`.
-
-### 6d. Deploy
+## 5. Deploy
 
 **Deploy → New deployment → Web app**
 
@@ -149,13 +106,12 @@ In the editor, run **`setup()`** once and grant the permission prompts. It:
 Copy the **Web app URL** (ends in `/exec`). The endpoint is world-reachable by design;
 every action still checks the session token and role.
 
-### 6e. Optional: demo data
-
-Run `seedDemoData()` for a few sample SKUs. **Never run it on a production sheet.**
+To ship a code change later: paste the new `Code.gs`, then **Deploy → Manage
+deployments → edit → Version: New**.
 
 ---
 
-## 7. Point the frontend at the backend
+## 6. Point the frontend at the backend
 
 Edit `warehouse/config.js`:
 
@@ -166,11 +122,12 @@ export const CONFIG = {
 };
 ```
 
-Reload the app and sign in with the bootstrap admin.
+Reload the app and sign in as the Admin — then **change that password immediately**
+(Settings → change password, or the Users page).
 
 ---
 
-## 8. GitHub Pages
+## 7. GitHub Pages
 
 1. Push this repo to GitHub.
 2. **Settings → Pages → Deploy from a branch →** branch `main`, folder `/` (root).
@@ -180,7 +137,7 @@ No build step. If you later use a custom domain, nothing changes (paths are rela
 
 ---
 
-## 9. Roles & permissions
+## 8. Roles & permissions
 
 Backend-enforced on every action (`CAPS`, in the Config section of `apps-script/Code.gs`). The frontend also
 hides nav items by role, but that is cosmetic only.
@@ -205,18 +162,19 @@ them). You can also edit the `Categories` / `Locations` tabs of the Sheet direct
 
 ---
 
-## 10. User management
+## 9. User management
 
 - **Create user:** Users page → *Add user*. Admin sets the password directly (min 8
   chars). No temp-password / forced-change flow.
 - **Forgot password:** an Admin uses *Reset pw* on the Users page. There is no email.
 - **Force logout:** ends all of that user's sessions immediately.
 - **Disable:** uncheck *Account active* — also ends their sessions.
-- **First admin:** created by `setup()` from the bootstrap script properties.
+- **First admin:** created by `setup()` from the `BOOTSTRAP_ADMIN_*` constants at the
+  top of `Code.gs`. Change the password right after the first sign-in.
 
 ---
 
-## 11. Backup & maintenance
+## 10. Backup & maintenance
 
 | Task | How |
 |---|---|
@@ -225,34 +183,38 @@ them). You can also edit the `Categories` / `Locations` tabs of the Sheet direct
 | Schema version | `Config!schemaVersion` must equal `SCHEMA_VERSION` in `Code.gs`; a mismatch makes the backend refuse requests until you re-run `setup()`. |
 | Archive old audit rows | The log is append-only. To trim, copy `AuditLog` to a dated sheet and delete old rows manually. |
 | Triggers | `purgeSessions` (6h) and `sweepOrphanImages` (daily) are installed by `setup()`; check Triggers in the editor. |
-| Run backend tests | Set `TEST_SPREADSHEET_ID`, run `runAllTests()`, read the log. |
+| Run backend tests | Run `runAllTests()` in the editor (uses a throwaway Sheet), read the log. |
+| Password hash speed | Edit `HASH_ITERATIONS` at the top of `Code.gs` (lower = faster logins, e.g. `20000`); existing hashes keep working. |
 
 ---
 
-## 12. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
 | "Cannot reach the server" | Wrong `GAS_WEB_APP_URL`, or the deployment isn't "Anyone". Re-deploy. |
+| `CONFIG` / "No bound spreadsheet" error | The script wasn't created from **Extensions → Apps Script** inside the Sheet. Recreate it there. |
+| `CONFIG` / "run setup()" | You deployed before running `setup()`. Run it from the editor. |
 | Every call returns `SCHEMA` error | `Config!schemaVersion` ≠ code. Re-run `setup()`. |
 | "Session expired" immediately after login | Server/client clock skew, or the `Sessions` tab headers are wrong. Re-run `setup()`. |
 | Images upload but don't display | The Drive file sharing didn't apply; open the folder and set "Anyone with the link – Viewer". |
-| Login is slow (2–3 s) | Lower `HASH_ITERATIONS` (e.g. `20000`) and have users reset passwords, or accept it. |
+| Login is slow (2–3 s) | Lower `HASH_ITERATIONS` at the top of `Code.gs`. |
 | CORS error in console | You added a custom header or `application/json` content-type somewhere — the client must send `text/plain`. |
-| clasp `push` fails | `clasp login` again; ensure the Apps Script API is enabled at <https://script.google.com/home/usersettings>. |
 
 ---
 
-## 13. Security notes & known limitations
+## 12. Security notes & known limitations
 
 - The Apps Script endpoint is **world-reachable**; protection is the per-request session
-  token + role check. Keep `PASSWORD_PEPPER` secret.
+  token + role check.
+- The password secret is generated by `setup()` and lives in the `Config` tab of the
+  Sheet — never in the code and never sent to a client. It stays put; don't edit it.
 - **Product photos are effectively public** to anyone with the Drive file ID.
 - The session token lives in `localStorage` (XSS exposure). The app loads no third-party
   runtime scripts beyond the vendored Chart.js / SheetJS.
 - Password hashing is PBKDF2-style iterated HMAC-SHA256, not bcrypt/argon2 — weaker per
-  guess. Mitigated by admin-set strong passwords, a secret pepper, a locked-down Sheet,
-  and a 5-attempt / 15-minute lockout.
+  guess. Mitigated by admin-set strong passwords, the per-install secret, a locked-down
+  Sheet, and a 5-attempt / 15-minute lockout.
 - No offline support, no real-time multi-user sync (lists refresh after your own writes
   and on the manual refresh button).
 - `xlsx` (SheetJS) and Chart.js are third-party code vendored into `js/vendor/`.
