@@ -5,7 +5,7 @@
 
 export const CONFIG = {
   // Apps Script web-app deployment URL:
-  GAS_WEB_APP_URL: "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXXXXXXX/exec",
+  GAS_WEB_APP_URL: "https://script.google.com/macros/s/AKfycbxLD3DWyQmmE95jYJnTCbE5AQ3d5LpfDf2zjqdvoq4xWdFgmH_H4DdJiIRdIUlpcbBrow/exec",
 
   APP_NAME: "Warehouse Management",
   SESSION_STORAGE_KEY: "wms.session",
