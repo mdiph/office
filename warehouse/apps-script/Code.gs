@@ -24,7 +24,7 @@
 
 // ── edit these ──────────────────────────────────────────────────────────────
 var PHOTO_FOLDER_NAME        = 'Warehouse Photos';   // Drive folder for product photos — created if missing
-var HASH_ITERATIONS          = 50000;                // password hash rounds; lower (e.g. 20000) if logins feel slow
+var HASH_ITERATIONS          = 2000;                 // Apps Script runs HMAC in an interpreted loop — keep this modest (1000–3000). Each stored hash records its own count, so changing this only affects new/reset passwords (see resetAdmin()).
 var BOOTSTRAP_ADMIN_EMAIL    = 'admin@warehouse.local';
 var BOOTSTRAP_ADMIN_PASSWORD = 'ChangeMe123!';       // used only by setup(); change it right after first sign-in
 // ────────────────────────────────────────────────────────────────────────────
@@ -261,33 +261,39 @@ function userByEmail_(email) {
 function handleLogin_(payload, ctx) {
   var email = String(payload.email || '').trim().toLowerCase();
   var password = String(payload.password || '');
+
+  // Read + verify OUTSIDE the script lock. The hash is a slow interpreted loop
+  // and must not hold the lock while it runs — only the writes below need it.
+  var user = userByEmail_(email);
+  if (!user || !boolOf_(user.active)) {
+    audit_(ctx, email, null, 'LOGIN', 'user', email, 'Unknown or inactive user', 'denied');
+    throw new ApiError('AUTH_FAILED', 'Invalid credentials.');
+  }
+  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+    throw new ApiError('LOCKED', 'Account locked. Try again later.');
+  }
+  var okPw = verifyPassword_(password, user.passwordHash);
+
   return withLock_(function () {
-    var user = userByEmail_(email);
-    if (!user || !boolOf_(user.active)) {
-      audit_(ctx, email, null, 'LOGIN', 'user', email, 'Unknown or inactive user', 'denied');
-      throw new ApiError('AUTH_FAILED', 'Invalid credentials.');
-    }
-    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-      throw new ApiError('LOCKED', 'Account locked. Try again later.');
-    }
-    if (!verifyPassword_(password, user.passwordHash)) {
-      var failed = Number(user.failedCount || 0) + 1;
+    var fresh = userByEmail_(email) || user;
+    if (!okPw) {
+      var failed = Number(fresh.failedCount || 0) + 1;
       var patch = { failedCount: failed };
       if (failed >= MAX_FAILED_LOGINS) {
         patch.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60000).toISOString();
         patch.failedCount = 0;
       }
-      _patchUser_(user, patch);
-      audit_(ctx, email, user.role, 'LOGIN', 'user', email, 'Bad password', 'denied');
+      _patchUser_(fresh, patch);
+      audit_(ctx, email, fresh.role, 'LOGIN', 'user', email, 'Bad password', 'denied');
       throw new ApiError('AUTH_FAILED', 'Invalid credentials.');
     }
-    _patchUser_(user, { failedCount: 0, lockedUntil: '' });
+    _patchUser_(fresh, { failedCount: 0, lockedUntil: '' });
 
     var token = randomToken_();
     var ts = nowIso_();
-    appendRow_('Sessions', { token: token, userEmail: user.email, createdAt: ts, lastSeenAt: ts, userAgent: ctx.userAgent });
-    audit_(ctx, user.email, user.role, 'LOGIN', 'user', user.email, 'Login', 'success');
-    return { token: token, user: { email: user.email, name: user.name, role: user.role } };
+    appendRow_('Sessions', { token: token, userEmail: fresh.email, createdAt: ts, lastSeenAt: ts, userAgent: ctx.userAgent });
+    audit_(ctx, fresh.email, fresh.role, 'LOGIN', 'user', fresh.email, 'Login', 'success');
+    return { token: token, user: { email: fresh.email, name: fresh.name, role: fresh.role } };
   });
 }
 
@@ -333,14 +339,17 @@ function handleSession_(user) {
 }
 
 function handleChangePassword_(user, payload, ctx) {
+  // Hashing is slow — do it before taking the lock.
+  var current = userByEmail_(user.email);
+  if (!current || !verifyPassword_(String(payload.currentPassword || ''), current.passwordHash)) {
+    throw new ApiError('AUTH_FAILED', 'Current password is incorrect.');
+  }
+  var np = String(payload.newPassword || '');
+  if (np.length < 8) throw new ApiError('VALIDATION', 'New password must be at least 8 characters.');
+  var newHash = hashPassword_(np);
   return withLock_(function () {
-    var fresh = userByEmail_(user.email);
-    if (!verifyPassword_(String(payload.currentPassword || ''), fresh.passwordHash)) {
-      throw new ApiError('AUTH_FAILED', 'Current password is incorrect.');
-    }
-    var np = String(payload.newPassword || '');
-    if (np.length < 8) throw new ApiError('VALIDATION', 'New password must be at least 8 characters.');
-    _patchUser_(fresh, { passwordHash: hashPassword_(np) });
+    var fresh = userByEmail_(user.email) || current;
+    _patchUser_(fresh, { passwordHash: newHash });
     audit_(ctx, user.email, user.role, 'USER_CHANGE', 'user', user.email, 'Changed own password', 'success');
     return { ok: true };
   });
@@ -364,11 +373,12 @@ function handleCreateUser_(user, payload, ctx) {
   var password = String(payload.password || '');
   if (!email || !name || ROLES.indexOf(role) === -1) throw new ApiError('VALIDATION', 'Name, email and a valid role are required.');
   if (password.length < 8) throw new ApiError('VALIDATION', 'Password must be at least 8 characters.');
+  var newHash = hashPassword_(password); // slow — before the lock
   return withLock_(function () {
     if (userByEmail_(email)) throw new ApiError('CONFLICT', 'A user with that email already exists.');
     var rec = {
       email: email, name: name, role: role, active: true,
-      passwordHash: hashPassword_(password), failedCount: 0, lockedUntil: '',
+      passwordHash: newHash, failedCount: 0, lockedUntil: '',
       createdAt: nowIso_(), createdBy: user.email
     };
     appendRow_('Users', rec);
@@ -403,10 +413,11 @@ function handleResetPassword_(user, payload, ctx) {
   require_(user.role, 'users');
   var np = String(payload.newPassword || '');
   if (np.length < 8) throw new ApiError('VALIDATION', 'Password must be at least 8 characters.');
+  var newHash = hashPassword_(np); // slow — before the lock
   return withLock_(function () {
     var target = userByEmail_(payload.email);
     if (!target) throw new ApiError('NOT_FOUND', 'User not found.');
-    _patchUser_(target, { passwordHash: hashPassword_(np), failedCount: 0, lockedUntil: '' });
+    _patchUser_(target, { passwordHash: newHash, failedCount: 0, lockedUntil: '' });
     audit_(ctx, user.email, user.role, 'USER_CHANGE', 'user', target.email, 'Reset password', 'success');
     return { ok: true };
   });
@@ -1287,6 +1298,23 @@ function setup() {
 
   installTriggers_();
   Logger.log('Setup complete. Schema v' + SCHEMA_VERSION);
+}
+
+/**
+ * Editor helper. Re-hashes the admin (BOOTSTRAP_ADMIN_EMAIL) password to
+ * BOOTSTRAP_ADMIN_PASSWORD, clears any lockout, reactivates. Run this if you're
+ * locked out, or after changing HASH_ITERATIONS (old hashes keep their old,
+ * slower count until re-hashed).
+ */
+function resetAdmin() {
+  var email = String(BOOTSTRAP_ADMIN_EMAIL || '').toLowerCase();
+  var user = userByEmail_(email);
+  if (!user) { setup(); return; }
+  _patchUser_(user, {
+    passwordHash: hashPassword_(BOOTSTRAP_ADMIN_PASSWORD),
+    failedCount: 0, lockedUntil: '', active: true
+  });
+  Logger.log('Admin ' + email + ' reset to BOOTSTRAP_ADMIN_PASSWORD (' + HASH_ITERATIONS + ' iterations).');
 }
 
 function installTriggers_() {

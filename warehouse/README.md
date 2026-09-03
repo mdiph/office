@@ -184,7 +184,8 @@ them). You can also edit the `Categories` / `Locations` tabs of the Sheet direct
 | Archive old audit rows | The log is append-only. To trim, copy `AuditLog` to a dated sheet and delete old rows manually. |
 | Triggers | `purgeSessions` (6h) and `sweepOrphanImages` (daily) are installed by `setup()`; check Triggers in the editor. |
 | Run backend tests | Run `runAllTests()` in the editor (uses a throwaway Sheet), read the log. |
-| Password hash speed | Edit `HASH_ITERATIONS` at the top of `Code.gs` (lower = faster logins, e.g. `20000`); existing hashes keep working. |
+| Password hash speed | `HASH_ITERATIONS` at the top of `Code.gs` (default `2000`; ~1000–3000 is the usable range on Apps Script). Each stored hash records its own count, so a change only affects new/reset passwords — run `resetAdmin()` to re-hash the admin. |
+| Locked out of the admin | Run `resetAdmin()` in the editor — resets it to `BOOTSTRAP_ADMIN_PASSWORD` and clears any lockout. |
 
 ---
 
@@ -197,8 +198,9 @@ them). You can also edit the `Categories` / `Locations` tabs of the Sheet direct
 | `CONFIG` / "run setup()" | You deployed before running `setup()`. Run it from the editor. |
 | Every call returns `SCHEMA` error | `Config!schemaVersion` ≠ code. Re-run `setup()`. |
 | "Session expired" immediately after login | Server/client clock skew, or the `Sessions` tab headers are wrong. Re-run `setup()`. |
+| "Lock timeout" / "proses lain menahan kunci" on login | An old, high-iteration hash (or a stuck execution). Lower `HASH_ITERATIONS`, paste + redeploy, run `resetAdmin()`, wait ~2 min for any stuck run to clear, try again. |
 | Images upload but don't display | The Drive file sharing didn't apply; open the folder and set "Anyone with the link – Viewer". |
-| Login is slow (2–3 s) | Lower `HASH_ITERATIONS` at the top of `Code.gs`. |
+| Login takes a few seconds | Normal — the hash runs in an interpreted loop. Lower `HASH_ITERATIONS` + `resetAdmin()` if it bothers you. |
 | CORS error in console | You added a custom header or `application/json` content-type somewhere — the client must send `text/plain`. |
 
 ---
